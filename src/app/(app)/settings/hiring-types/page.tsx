@@ -1,0 +1,62 @@
+
+"use client";
+
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { HiringTypeManagement } from '@/components/HiringTypeManagement';
+import { useToast } from '@/hooks/use-toast';
+import type { HiringType } from '@/lib/types';
+import { authFetch } from '@/lib/api-client';
+
+export default function ManageHiringTypesPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [hiringTypes, setHiringTypes] = useState<HiringType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await authFetch('/api/hiring-types');
+      if (!res.ok) throw new Error('Falha ao buscar tipos de contratação.');
+      setHiringTypes(await res.json());
+    } catch(e: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: e.message });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+  
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user || !user.settingsAccess || !user.talentsAccess) {
+      router.push('/dashboard');
+    } else {
+      fetchData();
+    }
+  }, [user, authLoading, router, fetchData]);
+
+  if (authLoading || isLoading || !user) {
+    return (
+        <div className="flex h-full items-center justify-center">
+             <Loader2 className="mr-2 h-8 w-8 animate-spin text-primary" />
+        </div>
+    );
+  }
+
+  return (
+      <main className="container mx-auto p-4 md:p-8">
+        <Button variant="outline" onClick={() => router.push('/hr')} className="mb-8">
+            &larr; Voltar para Recursos Humanos
+        </Button>
+        <h1 className="text-3xl font-bold text-primary mb-8">Gerenciar Tipos de Contratação</h1>
+        
+        <HiringTypeManagement hiringTypes={hiringTypes} onDataMutated={fetchData} />
+
+      </main>
+  );
+}

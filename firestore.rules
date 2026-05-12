@@ -1,0 +1,158 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserData().role == 'admin';
+    }
+    
+    function isTalentManager() {
+      return isSignedIn() && (isAdmin() || getUserData().talentsAccess == true);
+    }
+    
+    function hasExpensesAccess() {
+       return isSignedIn() && getUserData().expensesAccess == true;
+    }
+    
+    function hasOperationalAccess() {
+       return isSignedIn() && (isAdmin() || getUserData().operationalAccess == true);
+    }
+    
+    function hasReceivingAccess() {
+      return isSignedIn() && (isAdmin() || getUserData().receivingAccess == true);
+    }
+    
+    function hasDriverManagementAccess() {
+       return isSignedIn() && (isAdmin() || getUserData().driverManagementAccess == true);
+    }
+
+    // --- USERS ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow update: if isAdmin() || isOwner(userId);
+      allow create, delete: if false; // somente via backend/auth triggers
+    }
+    
+    // --- VEHICLES ---
+    match /vehicles/{vehicleId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    // --- COUNTERS ---
+    match /counters/{counterId} {
+      allow read, write: if isSignedIn(); // usado ao criar cotações
+    }
+    
+    // --- QUOTES ---
+    match /quotes/{quoteId} {
+      allow read: if hasOperationalAccess() || hasReceivingAccess() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if hasOperationalAccess() || hasReceivingAccess() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || resource.data.userId == request.auth.uid;
+    }
+    
+    // --- MANIFESTS ---
+    match /manifests/{manifestId} {
+      allow read, create, update: if hasReceivingAccess() || hasOperationalAccess();
+      allow delete: if isAdmin();
+    }
+
+    // --- ANNOUNCEMENTS ---
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    // --- SETTINGS ---
+    match /settings/{docId} {
+      allow read, write: if isAdmin() && getUserData().settingsAccess == true;
+    }
+    
+    // --- HISTORY ---
+    match /loginHistory/{logId} {
+      allow read, write: if isAdmin() && getUserData().settingsAccess == true;
+    }
+    
+    match /systemHistory/{resetId} {
+      allow read, write: if isAdmin() && getUserData().settingsAccess == true;
+    }
+    
+    // --- NOTICES ---
+    match /notices/{noticeId} {
+      allow read, write: if isSignedIn() && getUserData().noticeBoardAccess == true;
+    }
+    
+    // --- DRIVERS ---
+    match /drivers/{driverId} {
+      allow get: if hasDriverManagementAccess() || hasOperationalAccess();
+      allow list: if hasDriverManagementAccess() || isSignedIn() && getUserData().documentsAccess == true;
+      allow write: if hasDriverManagementAccess();
+    }
+    
+    // --- EXPENSES ---
+    match /expenses/{expenseId} {
+      allow read: if hasExpensesAccess() && (isAdmin() || resource.data.createdBy == request.auth.uid);
+      allow list: if hasExpensesAccess() && (isAdmin() || request.query.where.createdBy == request.auth.uid);
+      allow create: if hasExpensesAccess() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if hasExpensesAccess() && (isAdmin() || resource.data.createdBy == request.auth.uid);
+    }
+
+    match /expenseCategories/{categoryId} {
+      allow read: if isSignedIn();
+      allow write: if hasExpensesAccess();
+    }
+    
+    // --- TALENTS ---
+    match /talents/{talentId} {
+      allow read, create, update, delete: if isTalentManager();
+    }
+    
+    match /hiringTypes/{typeId} {
+      allow read, write: if isTalentManager();
+    }
+    
+    match /discountTypes/{typeId} {
+      allow read, write: if isTalentManager();
+    }
+
+    // --- PAYSLIPS ---
+    match /payslips/{payslipId} {
+        allow read, create, delete: if isTalentManager();
+    }
+
+    // --- CHATS ---
+    match /chats/{chatId} {
+      // Apenas participantes podem ler/atualizar/deletar
+      allow read, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
+
+      // Criar chat exige estar autenticado, ser participante e ter pelo menos 2 participantes
+      allow create: if isSignedIn()
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants is list
+                    && request.resource.data.participants.size() >= 2;
+
+      // Subcoleção de mensagens
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow delete: if isSignedIn() && request.auth.uid == resource.data.senderId;
+      }
+    }
+  }
+}

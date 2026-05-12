@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Manual e Simulação de Precificação - DezLog</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            color: #1e3a8a;
+            border-bottom: 2px solid #1e3a8a;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #2563eb;
+            margin-top: 30px;
+        }
+
+        h3 {
+            color: #3b82f6;
+        }
+
+        .box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .highlight {
+            font-weight: bold;
+            color: #0284c7;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        ul li {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        ul li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .step {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .footer {
+            margin-top: 50px;
+            font-size: 0.9em;
+            color: #64748b;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 20px;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="no-print" style="text-align:right; margin-bottom: 20px;">
+        <button onclick="window.print()"
+            style="padding: 10px 20px; background: #1e3a8a; color: white; border: none; border-radius: 5px; cursor: pointer;">🖨️
+            Salvar como PDF / Imprimir</button>
+    </div>
+
+    <h1>Guia Definitivo: Lógica de Precificação DezLog</h1>
+    <p>Este documento contém o manual de funcionamento dos painéis de configuração de preço e uma simulação passo a
+        passo do cálculo do motor interno do sistema.</p>
+
+    <!-- MANUAL SECTION -->
+    <h2>Parte 1: Como o Painel de Configurações Afeta o Bolso</h2>
+    <p>Abaixo detalhamos o que significa cada página de configurações logísticas encontradas no menu do sistema.</p>
+
+    <div class="box">
+        <h3>1. Precificação de Frete Fracionado e Faixas (/settings/freight-pricing/fractional)</h3>
+        <p>A página mais importante do cálculo de matriz de peso base.</p>
+        <ul>
+            <li><span class="highlight">Matriz Detalhada R$/Kg:</span> Define quanto custa transportar cada quilo por
+                categoria de destino (Capital, Interior, etc.). É a fundação do Valor Base do frete.</li>
+            <li><span class="highlight">Faixas de Peso (Weight Tiers):</span> Se a caixa for muito leve, o lucro esvai.
+                Você cadastra multiplicadores (ex: "Até 100 kg, cobrar o dobro = Fator 2.0x") para proteger coletas
+                muito pequenas.</li>
+            <li><span class="highlight">Tabela de Frete Mínimo Absoluto:</span> A trava de segurança mestre. Se a
+                matemática de uma caixa levinha apontar R$ 50,00 de total, mas o Frete Mínimo de SP>MG for R$ 200,00, o
+                sistema anula o cálculo de R$ 50 e sobrepõe o preço para R$ 200 automaticamente.</li>
+        </ul>
+    </div>
+
+    <div class="box">
+        <h3>2. Regiões e Acréscimos Tufão (/settings/regions)</h3>
+        <p>A alavanca para cobrir custos geopolíticos difíceis (Acréscimo Regional).</p>
+        <ul>
+            <li>Você define estados (UFs) e amarra em nomes de regiões (Ex: Nordeste).</li>
+            <li>Ao aplicar "15%" para o Nordeste, o sistema pega o Frete Subtotal inteiro (Peso + Dificuldade + GRIS +
+                Lucro) e infla mais 15% como "pedágio regional", antes mesmo dos impostos.</li>
+        </ul>
+    </div>
+
+    <div class="box">
+        <h3>3. Taxa de Dificuldade de Frete (/settings/difficulty-tax)</h3>
+        <p>Penalidade fixa direta ao cliente baseada na dor de cabeça de certas localidades.</p>
+        <ul>
+            <li>Diferente do acréscimo percentual, essa taxa é fixada em reais (Ex: R$ 80,00 no destino Sul).</li>
+            <li>Se a nota for da zona "Rural" ou área crítica demarcada, o sistema embute exatos R$ 80,00 secos no custo
+                do Subtotal (inflacionado antes de embutir lucro ou taxas de balança).</li>
+        </ul>
+    </div>
+
+    <div class="box">
+        <h3>4. Configurações Base, ICMS e Lucratividade (/settings/pricing)</h3>
+        <p>Segurança das apólices e Margem do caixa central da empresa.</p>
+        <ul>
+            <li><span class="highlight">Taxa de Lucro sobre o Frete (%):</span> O markup (margem pura) de lucro desejado
+                em cima de todo o esforço rodoviário antes de virarem taxas regionais.</li>
+            <li><span class="highlight">GRIS / Advalorem (%):</span> Seguro do valor de carga. Pega o valor da NF
+                enviada pelo remetente e tira (Ex: 0,8%). Assumida na formação do Subtotal.</li>
+            <li><span class="highlight">Tabela Estadual de ICMS (%):</span> A grande tabela brasileira. Quando o sistema
+                descobre o valor final que quer das mãos do cliente, ele checa "SP para BA", pega (ex: 12%) e destaca
+                essa fatia informando a incidência do imposto no rodapé.</li>
+        </ul>
+    </div>
+
+    <!-- SIMULATION SECTION -->
+    <h2>Parte 2: Simulação de Cálculo (Passo a Passo)</h2>
+    <p>Abaixo apresentamos como o "cérebro" do sistema calcula uma rota real de R$ 1.000 (NF) enviando uma caixa
+        30x30x30 pesando 100 kg, entre Capitais (SP>RJ).</p>
+
+    <div class="step">
+        <strong>📍 Passo 1: O Combate do Peso Mestre (Físico vs Cubado)</strong><br>
+        1 Caixa (30x30x30) resulta em 0,027 m³. Multiplicado por 300, dá um total Cubado de 8,1 kg.<br>
+        O peso real aferido na balança é de 100 kg. O sistema escolhe o maior. <br>
+        <span class="highlight">Peso Taxável Final = 100 kg.</span>
+    </div>
+
+    <div class="step">
+        <strong>⚙️ Passo 2: O Valor Base do Asfalto</strong><br>
+        A tarifa "Capital a Capital" diz que é R$ 1,50 o quilo.<br>
+        A mercadoria caiu na faixa "Até 100kg" que tem um freio Multiplicador de 2.0x.<br>
+        Taxa final ajustada: R$ 3,00 o KG.<br>
+        <span class="highlight">Custo de Trajeto = 100 kg × R$ 3,00 = R$ 300,00.</span>
+    </div>
+
+    <div class="step">
+        <strong>🛡️ Passo 3: Seguro Operacional & Adicionais</strong><br>
+        O GRIS (Advalorem) de 0,8% bate em cima dos R$ 1.000 da NF = R$ 8,00 extras.<br>
+        Sendo ambas localidades de fácil acesso, Taxa de Dificuldade = R$ 0,00.<br>
+        <span class="highlight">Subtotal = R$ 300 + R$ 8 = R$ 308,00.</span>
+    </div>
+
+    <div class="step">
+        <strong>💰 Passo 4: Formação do Markup (Sua Taxa de Lucro!)</strong><br>
+        Nesse exemplo a Taxa de Lucro estipulada em Painel é de 16%.<br>
+        Multiplica-se essa porcentagem no Subtotal Bruto para gerar rentabilidade da empresa.<br>
+        <span class="highlight">Subtotal com Lucro = R$ 308,00 × 1,16 = R$ 357,28.</span>
+    </div>
+
+    <div class="step">
+        <strong>🧭 Passo 5: O Check-under de Acréscimo Regional</strong><br>
+        Todo Frete em direção ao SUDESTE tem imposto regional de 10% de pedágio fixo na base.<br>
+        <span class="highlight">Frete Parcial da Rota = R$ 357,28 × 1,10 = R$ 393,00.</span>
+    </div>
+
+    <div class="step">
+        <strong>🚔 Passo 6: A Verificação do Frete Mínimo</strong><br>
+        O Frete Mínimo cadastrado daquela rota (SP para RJ - Capital) era de R$ 320,00.<br>
+        O limite calculado acima foi de R$ 393, logo, como o cálculo do esforço de frete supera o chão tabelado,
+        mantém-se a soma de <span class="highlight">R$ 393,00</span>.
+    </div>
+
+    <div class="step">
+        <strong>🏛️ Passo 7: Declaração Fiscal</strong><br>
+        ICMS (12%) e emissão pública separada das guias fora da margem central de lucro puro.<br>
+        <span class="highlight">Valor ICMS = R$ 393,00 × 0.12 = R$ 47,16.</span><br>
+        Resultado Financeiro Final da Operação: <strong>R$ 393,00 Total Bruto.</strong>
+    </div>
+
+    <div class="footer">
+        Gerado automaticamente por arquiteturas logísticas. | <strong>DezLog Secure Freight</strong>
+    </div>
+</body>
+
+</html>
