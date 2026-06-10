@@ -55,6 +55,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         { $set: { avatarUrl: publicPath } }
     );
     
+    if (hub) {
+      await db.collection('conversations').updateMany(
+          { isGroup: true, name: hub.name },
+          { $set: { avatarUrl: publicPath } }
+      );
+    }
+    
     return NextResponse.json({ success: true, path: publicPath });
 
   } catch (error: any) {

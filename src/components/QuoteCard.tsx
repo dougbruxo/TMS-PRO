@@ -389,12 +389,27 @@ const _QuoteCard = ({
                         {deliveryDeadlineInfo.text}
                     </Badge>
                 )}
-                 {quote.status === 'Finalizado' && quote.deliveryStatus && (
-                    <Badge variant={quote.deliveryStatus === 'No Prazo' ? 'default' : 'destructive'} className={cn('mt-1', {'bg-green-600 hover:bg-green-600': quote.deliveryStatus === 'No Prazo'})}>
-                        <CheckCircle className="mr-1 h-3 w-3"/>
-                        Entregue {quote.deliveryStatus}
-                    </Badge>
-                 )}
+                 {(() => {
+                    if (quote.status !== 'Finalizado') return null;
+                    let delStatus = quote.deliveryStatus;
+                    if (!delStatus && quote.deliveryForecast) {
+                        const deliveryDateStr = quote.deliveredAt || quote.closedAt;
+                        if (deliveryDateStr) {
+                            const forecast = new Date(quote.deliveryForecast);
+                            const actual = new Date(deliveryDateStr);
+                            if (!isNaN(forecast.getTime()) && !isNaN(actual.getTime())) {
+                                delStatus = actual <= forecast ? 'No Prazo' : 'Atrasado';
+                            }
+                        }
+                    }
+                    if (!delStatus) return null;
+                    return (
+                        <Badge variant={delStatus === 'No Prazo' ? 'default' : 'destructive'} className={cn('mt-1', {'bg-green-600 hover:bg-green-600': delStatus === 'No Prazo'})}>
+                            <CheckCircle className="mr-1 h-3 w-3"/>
+                            Entregue {delStatus}
+                        </Badge>
+                    );
+                 })()}
                  {quote.priority && <Badge className={`mt-1 border ${priorityDetails[quote.priority].color}`}>{priorityDetails[quote.priority].label}</Badge>}
                  {lastOccurrence && (
                     <Badge variant="destructive" className={cn('mt-1', { 'animate-pulse': isBlockedByOccurrence })}>

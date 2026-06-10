@@ -4,10 +4,28 @@ import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params;
     const { db } = await connectToDatabase();
-    if (!ObjectId.isValid(params.id)) return NextResponse.json({}, { status: 400 });
-    const customer = await db.collection('customers').findOne({ _id: new ObjectId(params.id) });
-    if (!customer) return NextResponse.json({ message: "Cliente não encontrado." }, { status: 404 });
+    if (!ObjectId.isValid(id)) return NextResponse.json({}, { status: 400 });
+    const customer = await db.collection('customers').findOne({ _id: new ObjectId(id) });
+    if (!customer) {
+      const clientCompany = await db.collection('client_companies').findOne({ _id: new ObjectId(id) });
+      if (clientCompany) {
+        const { _id, ...rest } = clientCompany;
+        return NextResponse.json({
+          id: _id.toHexString(),
+          razaoSocial: clientCompany.razaoSocial || clientCompany.nome || '',
+          cnpj: clientCompany.cnpj || '',
+          nomeFantasia: clientCompany.nomeFantasia || '',
+          inscricaoEstadual: clientCompany.inscricaoEstadual || '',
+          email: clientCompany.email || '',
+          telefone: clientCompany.telefone || '',
+          code: clientCompany.code || `B2B-${_id.toHexString().slice(-5).toUpperCase()}`,
+          ...rest
+        }, { status: 200 });
+      }
+      return NextResponse.json({ message: "Cliente não encontrado." }, { status: 404 });
+    }
     const { _id, ...rest } = customer;
     return NextResponse.json({ id: _id.toHexString(), ...rest }, { status: 200 });
   } catch (error: any) {

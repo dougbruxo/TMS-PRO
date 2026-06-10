@@ -88,7 +88,7 @@ export default function ClienteMeusFretesPage() {
   }, [selectedUserId, statusFilter]);
 
   const { filteredQuotes } = useMemo(() => {
-    if (!dateRange.from || !dateRange.to || !selectedUserId) {
+    if (!dateRange.from || isNaN(dateRange.from.getTime()) || !dateRange.to || isNaN(dateRange.to.getTime()) || !selectedUserId) {
         return { filteredQuotes: [] };
     }
     
@@ -109,7 +109,10 @@ export default function ClienteMeusFretesPage() {
         // E ser do usuário selecionado no filtro de visão do painel
         const isFromSelectedUser = quote.creatorId === selectedUserId || (selectedUserId === currentUser?.id && quote.userId === currentUser?.id && !quote.creatorId);
 
-        const matchesBase = quote.status === statusFilter && quoteDate >= start && quoteDate <= end && isFromSelectedUser;
+        const matchesStatus = statusFilter === 'Finalizado' 
+            ? quote.status === 'Finalizado' 
+            : (quote.status !== 'Finalizado' && quote.status !== 'Recusada');
+        const matchesBase = matchesStatus && quoteDate >= start && quoteDate <= end && isFromSelectedUser;
         
         if (!matchesBase) return false;
         
@@ -327,16 +330,36 @@ export default function ClienteMeusFretesPage() {
                         <Label>De:</Label>
                         <Input 
                             type="date" 
-                            value={dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}
-                            onChange={e => setDateRange(prev => ({...prev, from: parse(e.target.value, 'yyyy-MM-dd', new Date())}))}
+                            value={dateRange.from && !isNaN(dateRange.from.getTime()) ? format(dateRange.from, 'yyyy-MM-dd') : ''}
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (!val) {
+                                    setDateRange(prev => ({...prev, from: undefined}));
+                                    return;
+                                }
+                                const parsed = parse(val, 'yyyy-MM-dd', new Date());
+                                if (!isNaN(parsed.getTime())) {
+                                    setDateRange(prev => ({...prev, from: parsed}));
+                                }
+                            }}
                         />
                     </div>
                     <div className="space-y-2">
                         <Label>Até:</Label>
                         <Input 
                             type="date" 
-                            value={dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : ''}
-                            onChange={e => setDateRange(prev => ({...prev, to: parse(e.target.value, 'yyyy-MM-dd', new Date())}))}
+                            value={dateRange.to && !isNaN(dateRange.to.getTime()) ? format(dateRange.to, 'yyyy-MM-dd') : ''}
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (!val) {
+                                    setDateRange(prev => ({...prev, to: undefined}));
+                                    return;
+                                }
+                                const parsed = parse(val, 'yyyy-MM-dd', new Date());
+                                if (!isNaN(parsed.getTime())) {
+                                    setDateRange(prev => ({...prev, to: parsed}));
+                                }
+                            }}
                         />
                     </div>
                 </div>

@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { BackButton } from '@/components/BackButton';
 import { getExternalShortcuts, saveExternalShortcuts, DEFAULT_SHORTCUTS, type ExternalShortcut } from '@/components/Header';
 
 export default function DashboardSettingsPage() {
@@ -158,12 +159,12 @@ export default function DashboardSettingsPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-primary">Organizar Dashboard</h1>
           <p className="text-muted-foreground">Use os botões para reordenar os atalhos da sua página inicial.</p>
         </div>
-        <Button onClick={() => router.push('/dashboard')}>Voltar para a Página Inicial</Button>
+        <BackButton href="/dashboard" label="Voltar para a Página Inicial" className="mb-0 mt-2" />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/database';
 import { ObjectId } from 'mongodb';
+import { loadCertificateFromDB } from '@/lib/sefaz/certificate';
+import { consultarCte } from '@/lib/sefaz/soap-client';
+import type { SefazAmbiente } from '@/lib/sefaz/endpoints';
 
 /**
  * Rota de download de documentos fiscais (PDF/XML).
@@ -24,6 +27,8 @@ export async function GET(request: Request) {
             return new NextResponse('Estão faltando parâmetros (id/type).', { status: 400 });
         }
 
+        const cleanType = type.toLowerCase().replace('-', '');
+
         const { db } = await connectToDatabase();
         
         // Buscar documento no banco local
@@ -42,7 +47,62 @@ export async function GET(request: Request) {
         
         // --- FORMATO XML ---
         if (format === 'xml') {
-            const xmlContent = doc.xmlAssinado || doc.xmlRetorno;
+            const sync = searchParams.get('sync') === 'true';
+            
+            // Se o XML de retorno/protocolo não estiver disponível localmente ou se for forçado o sync
+            if (cleanType === 'cte' && (sync || !doc.xmlProtocolo || !doc.xmlRetorno)) {
+                try {
+                    const cert = await loadCertificateFromDB(db);
+                    if (cert && doc.chaveAcesso) {
+                        const emitente = await db.collection('company_profiles').findOne({ isDefault: true });
+                        const sysSettings = await db.collection('system_settings').findOne({ type: 'ambiente_sefaz' });
+                        const ambiente: SefazAmbiente = sysSettings?.sefazEnvironment === 'producao' ? 'producao' : 'homologacao';
+                        const ufEmitente = (emitente?.estado || 'SP').substring(0, 2).toUpperCase();
+                        
+                        console.log(`[XML Sync] Consultando situação do CTe ${doc.chaveAcesso} na SEFAZ (${ufEmitente} - ${ambiente})`);
+                        const sefazResponse = await consultarCte(doc.chaveAcesso, ufEmitente, ambiente, cert);
+                        
+                        if (sefazResponse.success && sefazResponse.xmlProtocolo) {
+                            const updateData: Record<string, any> = {
+                                status: 'autorizado',
+                                protocolo: sefazResponse.nProt || doc.protocolo,
+                                dataAutorizacao: sefazResponse.dhRecbto || doc.dataAutorizacao,
+                                xmlRetorno: sefazResponse.xmlRetorno,
+                                xmlProtocolo: sefazResponse.xmlProtocolo,
+                            };
+                            
+                            await db.collection('issued_documents').updateOne(
+                                { _id: doc._id },
+                                { $set: updateData }
+                             );
+                             
+                             // Atualizar o objeto local em memória
+                             doc = { ...doc, ...updateData };
+                             console.log(`[XML Sync] Documento ${doc.chaveAcesso} sincronizado e atualizado no banco.`);
+                        }
+                    }
+                } catch (e: any) {
+                    console.error('[XML Sync] Falha ao sincronizar com a SEFAZ:', e.message);
+                }
+            }
+
+            // Se tiver o XML assinado do CTe e o XML do protocolo de autorização, montamos o cteProc (XML de Distribuição)
+            let xmlContent = '';
+            let filename = `${cleanType.toUpperCase()}_${doc.chaveAcesso || id}.xml`;
+            
+            if (cleanType === 'cte' && doc.xmlAssinado && doc.xmlProtocolo) {
+                const cleanCte = doc.xmlAssinado.replace(/^<\?xml[^>]+>\s*/i, '').trim();
+                const cleanProt = doc.xmlProtocolo.replace(/^<\?xml[^>]+>\s*/i, '').trim();
+                xmlContent = `<?xml version="1.0" encoding="UTF-8"?><cteProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/cte">${cleanCte}${cleanProt}</cteProc>`;
+                
+                // Formato padrão oficial de distribuição: chave-procCTe.xml
+                if (doc.chaveAcesso) {
+                    filename = `${doc.chaveAcesso}-procCTe.xml`;
+                }
+            } else {
+                xmlContent = doc.xmlAssinado || doc.xmlRetorno || doc.xmlProtocolo;
+            }
+            
             if (!xmlContent) {
                 return new NextResponse('XML não disponível para este documento.', { status: 404 });
             }
@@ -50,13 +110,13 @@ export async function GET(request: Request) {
             return new NextResponse(xmlContent, {
                 headers: {
                     'Content-Type': 'application/xml; charset=utf-8',
-                    'Content-Disposition': `attachment; filename="${type.toUpperCase()}_${doc.chaveAcesso || id}.xml"`,
+                    'Content-Disposition': `attachment; filename="${filename}"`,
                 }
             });
         }
         
         // --- FORMATO PDF ---
-        if (type.toLowerCase() === 'cte') {
+        if (cleanType === 'cte') {
             // Redirecionar para o gerador DACTE interno
             const dacteId = doc.chaveAcesso || doc._id.toHexString();
             const baseUrl = new URL(request.url);
@@ -65,19 +125,13 @@ export async function GET(request: Request) {
             return NextResponse.redirect(dacteUrl);
         }
         
-        // MDF-e (DAMDFE) — por enquanto retorna informações em texto
-        // A implementação do DAMDFE (PDF do MDF-e) seguirá o mesmo padrão do DACTE
-        if (type.toLowerCase() === 'mdfe') {
-            return NextResponse.json({
-                message: 'Download do DAMDFE (PDF do MDF-e) será implementado em breve.',
-                documento: {
-                    type: doc.type,
-                    chaveAcesso: doc.chaveAcesso,
-                    status: doc.status,
-                    protocolo: doc.protocolo,
-                    dataEmissao: doc.dataEmissao,
-                }
-            });
+        if (cleanType === 'mdfe') {
+            // Redirecionar para o gerador DAMDFE interno
+            const damdfeId = doc.chaveAcesso || doc._id.toHexString();
+            const baseUrl = new URL(request.url);
+            const damdfeUrl = `${baseUrl.origin}/api/sefaz/damdfe?id=${damdfeId}`;
+            
+            return NextResponse.redirect(damdfeUrl);
         }
         
         return new NextResponse('Tipo de documento não suportado.', { status: 400 });

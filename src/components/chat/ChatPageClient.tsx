@@ -12,9 +12,10 @@ import { ChatAnnouncements } from '@/components/chat/ChatAnnouncements';
 import type { ChatMessage, User, ChatConversation, ChatAnnouncement, HubUser, SharedItem } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
+import { useChatStream } from '@/hooks/use-chat-stream';
 
 export function ChatPageClient() {
-  const { user, loading: authLoading, refreshUnreadCount } = useAuth();
+  const { user, loading: authLoading, refreshNotificationCounts } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -36,7 +37,7 @@ export function ChatPageClient() {
     setIsLoadingData(true);
     try {
         const [usersRes, announcementsRes, convosRes, hubsRes] = await Promise.all([
-            authFetch('/api/users'),
+            authFetch('/api/users?includeClients=true'),
             authFetch('/api/announcements'),
             authFetch(`/api/chat/conversations?userId=${user.id}`),
             authFetch('/api/chat/hubs'),
@@ -104,13 +105,13 @@ export function ChatPageClient() {
           body: JSON.stringify({ userId: user.id }),
       }).then(res => {
           if (res.ok) {
-              refreshUnreadCount();
+              refreshNotificationCounts();
           }
       }).catch(error => {
           console.error("Error marking as read:", error);
       });
     }
-  }, [user, conversations, refreshUnreadCount]);
+  }, [user, conversations, refreshNotificationCounts]);
 
   useEffect(() => {
     const newChatId = searchParams.get('id');
@@ -130,26 +131,32 @@ export function ChatPageClient() {
     }
   }, [user, fetchPageData]);
 
-  useEffect(() => {
-    if (user) {
-        const convoInterval = setInterval(() => {
-            authFetch(`/api/chat/conversations?userId=${user.id}`)
-                .then(res => res.ok ? res.json() : Promise.reject('Failed to fetch convos'))
-                .then(setConversations)
-                .catch(err => console.error(err));
-        }, 15000);
-        return () => clearInterval(convoInterval);
-    }
-  }, [user]);
+  // ─── Real-time via SSE (replaces setInterval polling) ──────────────────────
+  useChatStream({
+    userId: user?.id,
+    chatId: activeChatId,
+    enabled: !!user,
+    onConversations: (updatedConvos) => {
+      // Merge updated conversations into state by ID
+      setConversations(prev => {
+        const idMap = new Map(updatedConvos.map((c: ChatConversation) => [c.id, c]));
+        const merged = prev.map(c => idMap.has(c.id) ? { ...c, ...idMap.get(c.id) } : c);
+        // Add any truly new conversations not yet in state
+        updatedConvos.forEach((c: ChatConversation) => {
+          if (!merged.some(m => m.id === c.id)) merged.unshift(c);
+        });
+        return merged;
+      });
+    },
+    onMessages: (newMsgs) => {
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const fresh = newMsgs.filter((m: ChatMessage) => !existingIds.has(m.id));
+        return fresh.length > 0 ? [...prev, ...fresh] : prev;
+      });
+    },
+  });
 
-  useEffect(() => {
-    if (activeChatId) {
-        const messageInterval = setInterval(() => {
-            fetchMessages(activeChatId);
-        }, 3000);
-        return () => clearInterval(messageInterval);
-    }
-  }, [activeChatId, fetchMessages]);
 
   const startOrGetConversation = useCallback(async (entity: User | HubUser): Promise<string | null> => {
     if (!user) return null;
@@ -265,12 +272,27 @@ export function ChatPageClient() {
     );
   }
 
+  const isOperator = user?.role === 'admin' || user?.role === 'user';
+  const visibleConversations = conversations.filter(convo => {
+    if (convo.isGroup && isOperator) {
+      // Hide active chats that the current operator is not part of
+      if (convo.status === 'active' && !convo.activeOperatorIds?.includes(user.id)) {
+        return false;
+      }
+      // Hide finished chats for a clean, action-focused inbox
+      if (convo.status === 'finished') {
+        return false;
+      }
+    }
+    return true;
+  });
+
   return (
-      <div className="flex h-full border rounded-lg bg-card shadow-sm">
+      <div className="flex h-full border rounded-lg bg-card shadow-sm overflow-hidden chat-main-page-container">
         <ChatSidebar
             users={users}
             hubs={hubs}
-            conversations={conversations}
+            conversations={visibleConversations}
             activeChatId={activeChatId}
             onSelectConversation={handleSelectConversation}
             onStartNewChat={startOrGetConversation}
@@ -286,8 +308,22 @@ export function ChatPageClient() {
                         onClearConversation={handleClearConversation}
                         isClearing={isClearing}
                         activeChatId={activeChatId}
+                        activeConversation={conversations.find(c => c.id === activeChatId)}
+                        users={users}
+                        onMutateConversations={fetchPageData}
+                        fetchMessages={fetchMessages}
                     />
-                    <ChatInput onSendMessage={handleSendMessage} isSending={isSending} />
+                    <ChatInput 
+                        onSendMessage={handleSendMessage} 
+                        isSending={isSending} 
+                        disabled={(() => {
+                            const convo = conversations.find(c => c.id === activeChatId);
+                            if (!convo || !convo.isGroup || !isOperator) return false;
+                            return convo.status === 'pending' || 
+                                   convo.status === 'finished' || 
+                                   (convo.status === 'active' && !convo.activeOperatorIds?.includes(user.id));
+                        })()}
+                    />
                 </>
             ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">

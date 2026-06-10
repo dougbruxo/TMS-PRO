@@ -15,6 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Search, Trash2, Package } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { authFetch } from '@/lib/api-client';
+import { BackButton } from '@/components/BackButton';
+import { PageHeader } from '@/components/PageHeader';
 
 const cargoTypeSchema = z.object({
     name: z.string().min(2, 'O nome deve ter pelo menos 2 caracteres.')
@@ -118,19 +120,20 @@ export default function CargoTypesSettingsPage() {
 
     return (
         <main className="container mx-auto p-4 md:p-8">
-            <Button variant="outline" onClick={() => router.push('/settings')} className="mb-8">
-                &larr; Voltar para Configurações
-            </Button>
-
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-primary">Espécie da Carga</h1>
-                    <p className="text-muted-foreground">Gerencie as espécies de carga disponíveis para o CT-e.</p>
-                </div>
-                <Button onClick={() => setIsDialogOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Nova Espécie
-                </Button>
-            </div>
+            <PageHeader
+                icon={<Package className="h-4 w-4" />}
+                badge="Configurações Globais"
+                titlePrefix="Espécie da"
+                titleHighlight="Carga"
+                description="Gerencie as espécies de carga disponíveis para o CT-e."
+                backHref="/settings"
+                backLabel="Voltar para Configurações"
+                actions={
+                    <Button onClick={() => setIsDialogOpen(true)}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Nova Espécie
+                    </Button>
+                }
+            />
 
             <Card>
                 <CardHeader>

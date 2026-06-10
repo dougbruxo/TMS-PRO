@@ -50,16 +50,58 @@ export async function GET(request: Request) {
         }
         
         // Documento não encontrado localmente
-        // Para NF-e de terceiros, a consulta à SEFAZ requer integração 
-        // com o portal de distribuição de DFe (MDe)
+        // Para NF-e de terceiros, tentamos a API ConsultaDanfe.com
         const modelo = key.substring(20, 22);
+        
+        console.log(`[SEARCH BY KEY] Iniciando busca externa para chave: ${key} (Modelo: ${modelo})`);
+
+        if (modelo === '55') {
+            try {
+                const apiRes = await fetch('https://consultadanfe.com/api/v1/consulta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: '6461c313da234', // Token fornecido pelo usuário
+                        chave: key
+                    })
+                });
+
+                console.log(`[SEARCH BY KEY] ConsultaDanfe Status: ${apiRes.status}`);
+
+                if (apiRes.ok) {
+                    const apiData = await apiRes.json();
+                    console.log(`[SEARCH BY KEY] ConsultaDanfe Response Data:`, JSON.stringify(apiData).substring(0, 200));
+
+                    const isSuccess = apiData.status === 'success' || apiData.status === 'ok';
+
+                    if (isSuccess && apiData.xml_base64) {
+                        const xmlContent = Buffer.from(apiData.xml_base64, 'base64').toString('utf-8');
+                        return new NextResponse(xmlContent, {
+                            headers: { 
+                                'Content-Type': 'application/xml; charset=utf-8'
+                            }
+                        });
+                    } else if (apiData.message || apiData.error) {
+                        return NextResponse.json({ 
+                            message: `ConsultaDanfe: ${apiData.message || apiData.error || 'Erro desconhecido na API'}` 
+                        }, { status: 404 });
+                    }
+                } else {
+                    const errorText = await apiRes.text();
+                    console.error(`[SEARCH BY KEY] ConsultaDanfe Error Text: ${errorText}`);
+                }
+            } catch (apiErr) {
+                console.error('[ConsultaDanfe API Error]', apiErr);
+            }
+        }
+
         const modeloNome = modelo === '55' ? 'NF-e' 
                           : modelo === '57' ? 'CT-e' 
                           : modelo === '58' ? 'MDF-e' 
                           : 'Documento fiscal';
         
         return NextResponse.json({ 
-            message: `${modeloNome} com chave ${key} não encontrada no banco de dados local. A consulta direta à SEFAZ para documentos de terceiros será disponibilizada em breve.` 
+            message: `${modeloNome} com chave ${key} não encontrada no banco de dados local ou serviços de consulta externa.` 
         }, { status: 404 });
 
     } catch (error: any) {

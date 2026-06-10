@@ -5,20 +5,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Loader2, TrendingDown, Banknote, Scale, AlertTriangle } from 'lucide-react';
+import { Loader2, TrendingDown, Banknote, Scale, AlertTriangle, DollarSign } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
 
-const PulsingBadge = ({ count }: { count: number }) => {
-  if (count === 0) return null;
-  return (
-    <Badge className="absolute top-3 right-3 animate-pulse bg-red-600 text-white h-6 w-6 justify-center p-0 text-xs">
-      {count}
-    </Badge>
-  );
-};
+
+
 
 
 export default function FinancialHubPage() {
@@ -69,25 +62,25 @@ export default function FinancialHubPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="space-y-2 mb-8">
-        <h1 className="text-3xl font-bold text-primary">Gestão Financeira</h1>
-        <p className="text-muted-foreground">Controle as entradas e saídas financeiras da sua operação.</p>
-      </div>
+      <PageHeader
+        icon={<DollarSign className="h-4 w-4" />}
+        badge="Centro Financeiro"
+        titlePrefix="Gestão"
+        titleHighlight="Financeira"
+        description="Controle as entradas e saídas financeiras da sua operação."
+      />
       
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {financialCards.map((card) => (
-          <Link key={card.title} href={card.enabled ? card.link : '#'} className="flex">
-            <Card className={cn("relative flex flex-col w-full transition-all duration-300", card.enabled && "hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary", !card.enabled && "bg-muted/50 cursor-not-allowed")}>
-              <PulsingBadge count={card.alertCount} />
-              <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                {card.icon}
-                <CardTitle className={cn(!card.enabled && "text-muted-foreground")}>{card.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <CardDescription>{card.description}</CardDescription>
-              </CardContent>
-            </Card>
-          </Link>
+          <PremiumNavigationCard
+            key={card.title}
+            title={card.title}
+            description={card.description}
+            href={card.enabled ? card.link : '#'}
+            icon={card.icon}
+            disabled={!card.enabled}
+            pulsingBadgeCount={card.alertCount}
+          />
         ))}
       </div>
     </main>

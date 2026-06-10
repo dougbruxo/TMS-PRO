@@ -9,6 +9,7 @@ import * as z from 'zod';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2, Printer, FileText, Search, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -209,10 +210,8 @@ function CollectionOrderPageContent() {
       
       setTimeout(() => {
           const originalTitle = document.title;
-          const quoteString = data.quoteCode ? `Cotacao_${data.quoteCode}` : 'Ordem_de_Coleta';
-          // Sanitize the delivery name to remove invalid characters for filenames if needed
-          const destString = data.deliverTo ? `_${data.deliverTo.replace(/[^a-zA-Z0-9\s]/g, '').trim()}` : '';
-          document.title = `${quoteString}${destString}`;
+          const quoteString = data.quoteCode ? `Ordem de Coleta ${data.quoteCode}` : 'Ordem de Coleta';
+          document.title = quoteString;
           
           window.print();
           
@@ -243,18 +242,24 @@ function CollectionOrderPageContent() {
           }
       `}</style>
       
-      <main className="container mx-auto p-4 md:p-8 no-print">
+      <main className="container mx-auto p-4 md:p-8 no-print relative overflow-hidden">
+          {/* Efeitos de desfoque e brilho aurora neon atrás dos cards */}
+          <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10 animate-float-blur-1" />
+          <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10 animate-float-blur-2" />
+
           {!isEmbedded && (
-            <div>
-                <Button variant="outline" onClick={() => router.push('/documents')} className="mb-4">
-                  &larr; Voltar para Documentos
-                </Button>
-                <h1 className="text-3xl font-bold text-primary mb-2">Ordem de Coleta</h1>
-                <p className="text-muted-foreground">Preencha os dados abaixo para gerar o documento.</p>
-            </div>
+            <PageHeader
+                icon={<FileText className="h-4 w-4" />}
+                badge="Ordem de Coleta"
+                titlePrefix="Gerar"
+                titleHighlight="Ordem de Coleta"
+                description="Preencha os dados abaixo para criar e imprimir a Ordem de Coleta para o motorista."
+                backHref="/documents"
+                backLabel="Voltar para Documentos"
+            />
           )}
           
-          <Card className="max-w-4xl mx-auto mt-8">
+          <Card className="max-w-4xl mx-auto mt-8 border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             <form onSubmit={form.handleSubmit(onSubmit)}>
               <CardHeader className="flex flex-row items-start justify-between">
                 <div>
@@ -371,6 +376,49 @@ function CollectionOrderPageContent() {
               </CardFooter>
             </form>
           </Card>
+        <style>{`
+          @keyframes floatBlur1 {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              background-color: hsl(var(--primary) / 0.15);
+            }
+            25% {
+              transform: translate(120px, 60px) scale(1.15);
+              background-color: rgba(99, 102, 241, 0.18);
+            }
+            50% {
+              transform: translate(40px, 160px) scale(0.95);
+              background-color: rgba(236, 72, 153, 0.14);
+            }
+            75% {
+              transform: translate(-80px, 100px) scale(1.08);
+              background-color: rgba(59, 130, 246, 0.18);
+            }
+          }
+
+          @keyframes floatBlur2 {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              background-color: rgba(168, 85, 247, 0.15);
+            }
+            33% {
+              transform: translate(-100px, -120px) scale(1.1);
+              background-color: rgba(59, 130, 246, 0.16);
+            }
+            66% {
+              transform: translate(80px, -60px) scale(0.9);
+              background-color: rgba(236, 72, 153, 0.14);
+            }
+          }
+
+          .animate-float-blur-1 {
+            animation: floatBlur1 28s infinite ease-in-out alternate !important;
+          }
+
+          .animate-float-blur-2 {
+            animation: floatBlur2 38s infinite ease-in-out alternate !important;
+          }
+        `}</style>
       </main>
 
       {documentData && selectedDriver && (

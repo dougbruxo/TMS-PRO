@@ -162,6 +162,50 @@ export function getEndpoints(uf: string, ambiente: SefazAmbiente): SefazEndpoint
   }
 }
 
+export interface NfeEndpoint {
+  /** Consulta de NF-e por chave */
+  NfeConsulta: string;
+  /** Status do serviço NF-e */
+  NfeStatusServico: string;
+}
+
+/**
+ * Endpoints de NF-e do SVRS.
+ */
+const SVRS_NFE_ENDPOINTS: Record<SefazAmbiente, NfeEndpoint> = {
+  homologacao: {
+    NfeConsulta: 'https://nfe-homologacao.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
+    NfeStatusServico: 'https://nfe-homologacao.svrs.rs.gov.br/ws/NfeStatusServico/NfeStatusServico4.asmx',
+  },
+  producao: {
+    NfeConsulta: 'https://nfe.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
+    NfeStatusServico: 'https://nfe.svrs.rs.gov.br/ws/NfeStatusServico/NfeStatusServico4.asmx',
+  },
+};
+
+/**
+ * Endpoints de NF-e de São Paulo.
+ */
+const SP_NFE_ENDPOINTS: Record<SefazAmbiente, NfeEndpoint> = {
+  homologacao: {
+    NfeConsulta: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    NfeStatusServico: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfestatusservico4.asmx',
+  },
+  producao: {
+    NfeConsulta: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    NfeStatusServico: 'https://nfe.fazenda.sp.gov.br/ws/nfestatusservico4.asmx',
+  },
+};
+
+/**
+ * Retorna os endpoints de NF-e para uma UF.
+ */
+export function getNfeEndpoints(uf: string, ambiente: SefazAmbiente): NfeEndpoint {
+  const autorizador = UF_AUTORIZADOR[uf.toUpperCase()] || 'SVRS';
+  if (uf.toUpperCase() === 'SP') return SP_NFE_ENDPOINTS[ambiente];
+  return SVRS_NFE_ENDPOINTS[ambiente];
+}
+
 /**
  * SOAP Actions para cada serviço do CT-e v4.00.
  */
@@ -172,6 +216,14 @@ export const SOAP_ACTIONS = {
   CTeStatusServico: 'http://www.portalfiscal.inf.br/cte/wsdl/CTeStatusServicoV4/cteStatusServicoCT',
   CTeRecepcaoEvento: 'http://www.portalfiscal.inf.br/cte/wsdl/CTeRecepcaoEventoV4/cteRecepcaoEvento',
   CTeInutilizacao: 'http://www.portalfiscal.inf.br/cte/wsdl/CTeInutilizacaoV4/cteInutilizacaoCT',
+} as const;
+
+/**
+ * SOAP Actions para NF-e.
+ */
+export const NFE_SOAP_ACTIONS = {
+  NfeConsulta: 'http://www.portalfiscal.inf.br/nfe/wsdl/NfeConsultaProtocolo4/nfeConsultaNF',
+  NfeStatusServico: 'http://www.portalfiscal.inf.br/nfe/wsdl/NfeStatusServico4/nfeStatusServicoNF',
 } as const;
 
 // ============================================================
@@ -228,6 +280,8 @@ export const XML_NAMESPACES = {
   soap: 'http://www.w3.org/2003/05/soap-envelope',
   cte: 'http://www.portalfiscal.inf.br/cte',
   mdfe: 'http://www.portalfiscal.inf.br/mdfe',
+  nfe: 'http://www.portalfiscal.inf.br/nfe',
   ds: 'http://www.w3.org/2000/09/xmldsig#',
   wsdl: 'http://www.portalfiscal.inf.br/cte/wsdl/',
 } as const;
+

@@ -156,6 +156,45 @@ async function seedDatabase(db: Db) {
     }
 }
 
+async function ensureIndexes(db: Db) {
+  const indexes: any[] = [
+    { collection: 'users', fields: { email: 1 }, options: { unique: true, sparse: true } },
+    { collection: 'drivers', fields: { cpf: 1 }, options: { unique: true, sparse: true } },
+    { collection: 'customers', fields: { cnpj: 1 }, options: { unique: true, sparse: true } },
+    { collection: 'customers', fields: { code: 1 }, options: { unique: true, sparse: true } },
+    
+    { collection: 'quotes', fields: { quoteCode: 1 }, options: { unique: true, sparse: true } },
+    { collection: 'quotes', fields: { status: 1 }, options: {} },
+    { collection: 'quotes', fields: { userId: 1 }, options: {} },
+    { collection: 'quotes', fields: { tomadorId: 1 }, options: {} },
+    { collection: 'quotes', fields: { driverId: 1 }, options: {} },
+    { collection: 'quotes', fields: { invoiceId: 1 }, options: {} },
+    { collection: 'quotes', fields: { "operationalHistory.driverId": 1 }, options: {} },
+    
+    { collection: 'expenses', fields: { driverId: 1 }, options: {} },
+    { collection: 'expenses', fields: { quoteId: 1 }, options: {} },
+    { collection: 'expenses', fields: { status: 1 }, options: {} },
+    { collection: 'expenses', fields: { monthYear: 1 }, options: {} },
+    { collection: 'expenses', fields: { dueDate: 1 }, options: {} },
+    { collection: 'expenses', fields: { operationalEventId: 1 }, options: {} },
+    
+    { collection: 'manifests', fields: { manifestCode: 1 }, options: { unique: true, sparse: true } },
+    { collection: 'manifests', fields: { driverId: 1 }, options: {} },
+    { collection: 'manifests', fields: { status: 1 }, options: {} },
+    
+    { collection: 'stock_items', fields: { barcode: 1 }, options: { sparse: true } },
+    { collection: 'stock_items', fields: { quoteId: 1 }, options: {} }
+  ];
+
+  for (const idx of indexes) {
+    try {
+      await db.collection(idx.collection).createIndex(idx.fields, idx.options);
+    } catch (e: any) {
+      console.warn(`[Index Fallback] Failed to create index on ${idx.collection}:`, e.message);
+    }
+  }
+}
+
 
 export async function connectToDatabase() {
   if (cachedClient && cachedDb) {
@@ -169,6 +208,9 @@ export async function connectToDatabase() {
     
     // Seeding is now handled inside connectToDatabase to ensure it runs once per connection.
     await seedDatabase(db);
+    
+    // Create/Verify smart database indexes automatically on startup
+    await ensureIndexes(db);
     
     cachedClient = client;
     cachedDb = db;

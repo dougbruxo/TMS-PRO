@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { ClientPartnerManagement } from '@/components/ClientPartnerManagement';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Building2 } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function ClientPartnersPage() {
   const { user, loading } = useAuth();
@@ -44,12 +45,13 @@ export default function ClientPartnersPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Clientes e Fornecedores</h1>
-        <p className="text-muted-foreground mt-2">
-          Cadastre seus Principais Parceiros de Negócio para uso recorrente nas cotações.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Building2 className="h-4 w-4" />}
+        badge="Gestão de Parceiros"
+        titlePrefix="Clientes e"
+        titleHighlight="Fornecedores"
+        description="Cadastre seus Principais Parceiros de Negócio para uso recorrente nas cotações."
+      />
 
       <ClientPartnerManagement />
     </main>

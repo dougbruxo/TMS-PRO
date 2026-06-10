@@ -8,6 +8,7 @@ import { FreightForm, type FreightFormHandle } from '@/components/FreightForm';
 import type { Quote, Company, Vehicle, User as AuthUser, FreightMode, MinimumFreightValues } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, ShieldCheck, Search, ArrowRight, Calculator, Check, X, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -336,6 +337,8 @@ export default function QuotesAnalisePage() {
             enderecoEntrega: currentFormData.enderecoEntrega || updates.enderecoEntrega,
             obs: currentFormData.obs || updates.obs,
             nfeXml: currentFormData.nfeXml || updates.nfeXml,
+            nfeChave: currentFormData.nfeChave || updates.nfeChave,
+            nfNumber: currentFormData.nfNumber || updates.nfNumber,
           });
         }
       }
@@ -432,21 +435,29 @@ export default function QuotesAnalisePage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => isAnalyzing ? handleCancelAnalysis() : router.push('/dashboard')} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> {isAnalyzing ? 'Voltar à Lista' : 'Voltar ao Início'}
-      </Button>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary">Análise de Cotações</h1>
+          <p className="text-muted-foreground text-sm">
+            Revise, edite e delibere sobre cotações enviadas pelos clientes B2B.
+          </p>
+        </div>
+        <BackButton onClick={() => isAnalyzing ? handleCancelAnalysis() : router.push('/dashboard')} label={isAnalyzing ? 'Voltar à Lista' : 'Voltar ao Início'} className="mb-0 mt-2" />
+      </div>
 
       <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-900/30 dark:bg-amber-950/10">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="h-8 w-8 text-amber-600" />
+              <ShieldCheck className="h-8 w-8 text-amber-600 animate-pulse" />
               <div>
-                <CardTitle className="text-xl text-amber-900 dark:text-amber-200">Cotações em Análise</CardTitle>
+                <CardTitle className="text-xl text-amber-900 dark:text-amber-200">
+                  {isAnalyzing ? `Analisando: ${getQuoteCode(selectedQuote!)}` : 'Painel de Deliberação'}
+                </CardTitle>
                 <CardDescription className="text-amber-700 dark:text-amber-400">
                   {isAnalyzing
-                    ? `Analisando: ${getQuoteCode(selectedQuote!)} — Revise os dados e aprove ou rejeite.`
-                    : 'Cotações enviadas por clientes B2B aguardando sua deliberação.'}
+                    ? 'Revise os dados calculados pelo cliente e decida a precificação final.'
+                    : 'Cotações aguardando sua análise e aprovação de margens.'}
                 </CardDescription>
               </div>
             </div>

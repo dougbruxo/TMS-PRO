@@ -53,8 +53,10 @@ export function buildEventoXml(input: EventoInput): { xml: string; signId: strin
   const tpAmb = ambiente === 'producao' ? '1' : '2';
   const dhEvento = formatDateSefaz(input.dataHora || new Date());
   
-  // O ID do evento tem o formato: ID + tpEvento + chave + nSeqEvento (2 posições)
-  const nSeqFormatado = String(nSeqEvento).padStart(2, '0');
+  // O ID do evento tem o formato: ID + tpEvento + chave + nSeqEvento (2 posições para MDF-e, 3 posições para CT-e)
+  const nSeqFormatado = tipoDocumento === 'CTE' 
+    ? String(nSeqEvento).padStart(3, '0') 
+    : String(nSeqEvento).padStart(2, '0');
   const idEvento = `ID${tipoEvento}${chaveAcesso}${nSeqFormatado}`;
   
   const versao = tipoDocumento === 'CTE' ? '4.00' : '3.00';
@@ -74,14 +76,7 @@ export function buildEventoXml(input: EventoInput): { xml: string; signId: strin
       throw new Error('Cancelamento exige protocolo e justificativa (mínimo 15 caracteres).');
     }
     
-    detEventoXml = `
-      <detEvento versaoEvento="${versao}">
-        <${tagCanc}>
-          <descEvento>Cancelamento</descEvento>
-          <nProt>${detalhes.protocolo}</nProt>
-          <xJust>${detalhes.justificativa}</xJust>
-        </${tagCanc}>
-      </detEvento>`;
+    detEventoXml = `<detEvento versaoEvento="${versao}"><${tagCanc}><descEvento>Cancelamento</descEvento><nProt>${detalhes.protocolo}</nProt><xJust>${detalhes.justificativa}</xJust></${tagCanc}></detEvento>`;
       
   } else if (tipoEvento === '110112' && tipoDocumento === 'MDFE') {
     // Encerramento de MDF-e
@@ -92,16 +87,7 @@ export function buildEventoXml(input: EventoInput): { xml: string; signId: strin
     // A data de encerramento no formato YYYY-MM-DD
     const dtEnc = (input.dataHora || new Date()).toISOString().split('T')[0];
     
-    detEventoXml = `
-      <detEvento versaoEvento="${versao}">
-        <evEncMDFe>
-          <descEvento>Encerramento</descEvento>
-          <nProt>${detalhes.protocolo}</nProt>
-          <dtEnc>${dtEnc}</dtEnc>
-          <cUF>${codigoUf}</cUF>
-          <cMun>${detalhes.codigoMunicipioEncerramento}</cMun>
-        </evEncMDFe>
-      </detEvento>`;
+    detEventoXml = `<detEvento versaoEvento="${versao}"><evEncMDFe><descEvento>Encerramento</descEvento><nProt>${detalhes.protocolo}</nProt><dtEnc>${dtEnc}</dtEnc><cUF>${codigoUf}</cUF><cMun>${detalhes.codigoMunicipioEncerramento}</cMun></evEncMDFe></detEvento>`;
       
   } else if (tipoEvento === '110110' && tipoDocumento === 'CTE') {
     // Carta de Correção - CC-e (Apenas CT-e, MDF-e não tem CC-e)
@@ -110,35 +96,13 @@ export function buildEventoXml(input: EventoInput): { xml: string; signId: strin
     }
     
     // O XML da CC-e para CT-e v4.00 exige grupo e campo
-    detEventoXml = `
-      <detEvento versaoEvento="${versao}">
-        <evCCeCTe>
-          <descEvento>Carta de Correcao</descEvento>
-          <infCorrecao>
-            <grupoAlterado>${detalhes.grupoAlterado || 'infCTe'}</grupoAlterado>
-            <campoAlterado>${detalhes.campoAlterado || 'xObs'}</campoAlterado>
-            <valorAlterado>${detalhes.valorAlterado || detalhes.justificativa}</valorAlterado>
-          </infCorrecao>
-          <xCondUso>A Carta de Correcao e disciplinada pelo Art. 58-B do CONVENIO/SINIEF 06/89: Fica permitida a utilizacao de carta de correcao, para regularizacao de erro ocorrido na emissao de documentos fiscais relativos a prestacao de servico de transporte, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da prestacao;II - a correcao de dados cadastrais que implique mudanca do emitente, tomador, remetente ou do destinatario;III - a data de emissao ou de saida.</xCondUso>
-        </evCCeCTe>
-      </detEvento>`;
+    detEventoXml = `<detEvento versaoEvento="${versao}"><evCCeCTe><descEvento>Carta de Correcao</descEvento><infCorrecao><grupoAlterado>${detalhes.grupoAlterado || 'infCTe'}</grupoAlterado><campoAlterado>${detalhes.campoAlterado || 'xObs'}</campoAlterado><valorAlterado>${detalhes.valorAlterado || detalhes.justificativa}</valorAlterado></infCorrecao><xCondUso>A Carta de Correcao e disciplinada pelo Art. 58-B do CONVENIO/SINIEF 06/89: Fica permitida a utilizacao de carta de correcao, para regularizacao de erro ocorrido na emissao de documentos fiscais relativos a prestacao de servico de transporte, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da prestacao;II - a correcao de dados cadastrais que implique mudanca do emitente, tomador, remetente ou do destinatario;III - a data de emissao ou de saida.</xCondUso></evCCeCTe></detEvento>`;
   } else {
     throw new Error(`Tipo de evento ${tipoEvento} não suportado para ${tipoDocumento}.`);
   }
 
-  // Montagem final do XML
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<${tagRoot} xmlns="${xmlns}" versao="${versao}">
-  <infEvento Id="${idEvento}">
-    <cOrgao>${codigoUf}</cOrgao>
-    <tpAmb>${tpAmb}</tpAmb>
-    <CNPJ>${cnpj}</CNPJ>
-    <${tagChave}>${chaveAcesso}</${tagChave}>
-    <dhEvento>${dhEvento}</dhEvento>
-    <tpEvento>${tipoEvento}</tpEvento>
-    <nSeqEvento>${nSeqEvento}</nSeqEvento>${detEventoXml}
-  </infEvento>
-</${tagRoot}>`;
+  // Montagem final do XML (minificada)
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><${tagRoot} xmlns="${xmlns}" versao="${versao}"><infEvento Id="${idEvento}"><cOrgao>${codigoUf}</cOrgao><tpAmb>${tpAmb}</tpAmb><CNPJ>${cnpj}</CNPJ><${tagChave}>${chaveAcesso}</${tagChave}><dhEvento>${dhEvento}</dhEvento><tpEvento>${tipoEvento}</tpEvento><nSeqEvento>${nSeqEvento}</nSeqEvento>${detEventoXml}</infEvento></${tagRoot}>`;
 
   return { xml, signId: 'infEvento' };
 }

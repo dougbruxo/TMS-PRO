@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Edit, Trash2, DollarSign, Upload, CheckCircle, RotateCcw, FileArchive, History, File as FileIcon, MoreVertical, Search, Share2, Truck, User2, FileText, Move, Building2, Briefcase } from 'lucide-react';
+import { Loader2, PlusCircle, Edit, Trash2, DollarSign, Upload, CheckCircle, RotateCcw, FileArchive, History, File as FileIcon, MoreVertical, Search, Share2, Truck, User2, FileText, Move, Building2, Briefcase, ChevronRight } from 'lucide-react';
 import type { Expense, ExpenseCategory, User, ExpenseHistoryEvent, SharedItem, Driver, Talent, Quote, Company, Owner } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { getInitials, getQuoteCode, cn } from '@/lib/utils';
@@ -76,6 +76,10 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
   const [maskedValue, setMaskedValue] = useState('R$ 0,00');
   const [searchTerm, setSearchTerm] = useState('');
   const [groupBy, setGroupBy] = useState<'none' | 'category'>('none');
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [groupDescription, setGroupDescription] = useState('');
+  const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
 
   const [itemToShare, setItemToShare] = useState<SharedItem | null>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
@@ -119,6 +123,74 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
       exp.value.toString().includes(lowercasedFilter)
     );
   }, [expenses, searchTerm]);
+
+  const processedExpenses = useMemo(() => {
+    const groupsMap: Record<string, Expense[]> = {};
+    const standaloneExpenses: Expense[] = [];
+
+    filteredExpenses.forEach(exp => {
+      if (exp.groupId) {
+        if (!groupsMap[exp.groupId]) {
+          groupsMap[exp.groupId] = [];
+        }
+        groupsMap[exp.groupId].push(exp);
+      } else {
+        standaloneExpenses.push(exp);
+      }
+    });
+
+    const groupedList: Array<Expense & { isGroup?: boolean; children?: Expense[] }> = [];
+
+    Object.entries(groupsMap).forEach(([groupId, children]) => {
+      children.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+      const totalValue = children.reduce((sum, c) => sum + c.value, 0);
+      const totalPaid = children.reduce((sum, c) => sum + (c.paidValue || 0), 0);
+      const allPaid = children.every(c => c.status === 'pago');
+      const allPending = children.every(c => c.status === 'pendente');
+      const status: Expense['status'] = allPaid ? 'pago' : (allPending ? 'pendente' : 'parcial');
+
+      const getCommonField = <K extends keyof Expense>(field: K): Expense[K] | undefined => {
+        const firstVal = children[0][field];
+        const allSame = children.every(c => c[field] === firstVal);
+        return allSame ? firstVal : undefined;
+      };
+
+      const groupDesc = children[0].groupDescription || 'Despesas Agrupadas';
+
+      const groupObj: Expense & { isGroup?: boolean; children?: Expense[] } = {
+        id: `group-${groupId}`,
+        monthYear: children[0].monthYear,
+        groupId,
+        groupDescription: groupDesc,
+        description: groupDesc,
+        value: totalValue,
+        paidValue: totalPaid,
+        status,
+        dueDate: children[0].dueDate,
+        categoryId: children[0].categoryId,
+        categoryName: children[0].categoryName,
+        createdBy: children[0].createdBy,
+        createdAt: children[0].createdAt,
+        isRecurring: false,
+        driverId: getCommonField('driverId'),
+        driverName: getCommonField('driverName'),
+        quoteId: getCommonField('quoteId'),
+        talentId: getCommonField('talentId'),
+        talentName: getCommonField('talentName'),
+        customerId: getCommonField('customerId'),
+        customerName: getCommonField('customerName'),
+        ownerId: getCommonField('ownerId'),
+        ownerName: getCommonField('ownerName'),
+        isGroup: true,
+        children
+      };
+
+      groupedList.push(groupObj);
+    });
+
+    return [...standaloneExpenses, ...groupedList];
+  }, [filteredExpenses]);
 
   const formatCurrency = (value: number) => {
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -201,6 +273,36 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
 
   const handleUnlink = async (expense: Expense, type: string) => {
     setIsLinking(true);
+    const isGroup = expense.id.startsWith('group-');
+
+    if (isGroup) {
+      try {
+        const res = await authFetch(`/api/expenses/group`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'link',
+            groupId: expense.groupId,
+            linkType: type,
+            linkId: null,
+            user: { username: user!.username }
+          })
+        });
+        
+        if (!res.ok) {
+             const errorData = await res.json();
+             throw new Error(errorData.message || 'Falha ao desvincular o grupo.');
+        }
+        toast({ title: 'Sucesso', description: 'Vínculo do grupo removido com sucesso.' });
+        onDataMutated();
+      } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Erro', description: error.message });
+      } finally {
+        setIsLinking(false);
+      }
+      return;
+    }
+
     let updates: any = {};
     if (type === 'driver') {
         updates = { driverId: null, driverName: null };
@@ -246,25 +348,43 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
     } else if (linkType === 'quote') {
         updates = { quoteId: selectedLinkId };
     } else if (linkType === 'talent') {
-        updates = { talentId: selectedLinkId, talentName: item?.fullName };
+        updates = { talentId: selectedLinkId, talentName: item?.fullName || item?.name };
     } else if (linkType === 'customer') {
         updates = { customerId: selectedLinkId, customerName: item?.razaoSocial || item?.nome };
     } else if (linkType === 'owner') {
         updates = { ownerId: selectedLinkId, ownerName: item?.name };
     }
+
+    const isGroup = expenseToLink.id.startsWith('group-');
     
     try {
-        const res = await authFetch(`/api/expenses/${expenseToLink.id}`, {
-            method: 'PUT',
+        let res;
+        if (isGroup) {
+          res = await authFetch(`/api/expenses/group`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...updates, user: { username: user!.username } })
-        });
+            body: JSON.stringify({
+              action: 'link',
+              groupId: expenseToLink.groupId,
+              linkType,
+              linkId: selectedLinkId,
+              linkName: linkType === 'talent' ? (item?.fullName || item?.name) : (linkType === 'customer' ? (item?.razaoSocial || item?.nome) : item?.name),
+              user: { username: user!.username }
+            })
+          });
+        } else {
+          res = await authFetch(`/api/expenses/${expenseToLink.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...updates, user: { username: user!.username } })
+          });
+        }
         
         if (!res.ok) {
              const errorData = await res.json();
              throw new Error(errorData.message || 'Falha ao vincular.');
         }
-        toast({ title: 'Sucesso', description: 'Vinculado com sucesso.' });
+        toast({ title: 'Sucesso', description: isGroup ? 'Grupo vinculado com sucesso.' : 'Vinculado com sucesso.' });
         onDataMutated();
         setIsLinkDialogOpen(false);
     } catch (error: any) {
@@ -408,23 +528,33 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
     }
     setIsSubmitting(true);
     
+    const isGroup = editingExpense.id.startsWith('group-');
     const formData = new FormData();
     formData.append('file', proofFile);
     formData.append('user', JSON.stringify(user));
     formData.append('paidValue', String(paidValue));
 
     try {
-        const uploadResponse = await authFetch(`/api/expenses/${editingExpense.id}/upload-proof`, {
-            method: 'POST',
-            body: formData,
-        });
+        let uploadResponse;
+        if (isGroup) {
+            formData.append('groupId', editingExpense.groupId!);
+            uploadResponse = await authFetch(`/api/expenses/group/upload-proof`, {
+                method: 'POST',
+                body: formData,
+            });
+        } else {
+            uploadResponse = await authFetch(`/api/expenses/${editingExpense.id}/upload-proof`, {
+                method: 'POST',
+                body: formData,
+            });
+        }
 
         if (!uploadResponse.ok) {
             const errorData = await uploadResponse.json();
             throw new Error(errorData.message || 'Falha no upload do comprovativo e na confirmação do pagamento.');
         }
         
-        toast({ title: 'Sucesso!', description: 'Pagamento registado e comprovativo anexado.' });
+        toast({ title: 'Sucesso!', description: isGroup ? 'Pagamento unificado registado para o grupo.' : 'Pagamento registado e comprovativo anexado.' });
         onDataMutated();
         setIsPayDialogOpen(false);
     } catch (e: any) {
@@ -432,24 +562,131 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
     } finally {
         setIsSubmitting(false);
     }
-};
+  };
   
     const handleRevertPayment = async (expense: Expense) => {
         if (!user) return;
         setIsSubmitting(true);
+        const isGroup = expense.id.startsWith('group-');
+
         try {
-            const response = await authFetch(`/api/expenses/${expense.id}/upload-proof?user=${encodeURIComponent(JSON.stringify(user))}`, {
-                method: 'DELETE'
-            });
+            let response;
+            if (isGroup) {
+                response = await authFetch(`/api/expenses/group`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'revert-payment',
+                        groupId: expense.groupId,
+                        user: { username: user.username }
+                    })
+                });
+            } else {
+                response = await authFetch(`/api/expenses/${expense.id}/upload-proof?user=${encodeURIComponent(JSON.stringify(user))}`, {
+                    method: 'DELETE'
+                });
+            }
 
             if (!response.ok) throw new Error('Falha ao reverter pagamento.');
 
-            toast({ title: 'Sucesso!', description: 'Pagamento revertido para pendente e comprovativo removido.' });
+            toast({ title: 'Sucesso!', description: isGroup ? 'Pagamento do grupo revertido para pendente.' : 'Pagamento revertido para pendente e comprovativo removido.' });
             onDataMutated();
         } catch (e: any) {
             toast({ variant: 'destructive', title: 'Erro', description: e.message });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleGroupExpenses = async () => {
+        if (selectedExpenseIds.length < 2) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Selecione pelo menos 2 despesas para agrupar.' });
+            return;
+        }
+        if (!groupDescription.trim()) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Por favor, insira uma descrição para o grupo.' });
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            const res = await authFetch('/api/expenses/group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'group',
+                    expenseIds: selectedExpenseIds,
+                    groupDescription: groupDescription.trim(),
+                    user: { username: user!.username }
+                })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Falha ao agrupar despesas.');
+            }
+
+            toast({ title: 'Sucesso!', description: 'Despesas agrupadas com sucesso.' });
+            setSelectedExpenseIds([]);
+            setGroupDescription('');
+            setIsGroupDialogOpen(false);
+            onDataMutated();
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Erro', description: e.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleUngroupExpenses = async (groupId: string) => {
+        setIsSubmitting(true);
+        try {
+            const res = await authFetch('/api/expenses/group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'ungroup',
+                    groupId,
+                    user: { username: user!.username }
+                })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Falha ao desagrupar despesas.');
+            }
+
+            toast({ title: 'Sucesso!', description: 'Grupo desfeito com sucesso.' });
+            setExpandedGroupIds(prev => prev.filter(id => id !== groupId));
+            onDataMutated();
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Erro', description: e.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const toggleGroupExpansion = (groupId: string) => {
+        setExpandedGroupIds(prev =>
+            prev.includes(groupId)
+                ? prev.filter(id => id !== groupId)
+                : [...prev, groupId]
+        );
+    };
+
+    const handleSelectExpense = (expenseId: string, checked: boolean) => {
+        setSelectedExpenseIds(prev =>
+            checked ? [...prev, expenseId] : prev.filter(id => id !== expenseId)
+        );
+    };
+
+    const handleSelectAllExpenses = (checked: boolean, expensesList: Expense[]) => {
+        if (checked) {
+            const eligibleIds = expensesList
+                .filter(e => !e.groupId && e.status !== 'pago')
+                .map(e => e.id);
+            setSelectedExpenseIds(eligibleIds);
+        } else {
+            setSelectedExpenseIds([]);
         }
     };
     
@@ -617,6 +854,13 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12 text-center">
+                    <Checkbox 
+                      checked={selectedExpenseIds.length > 0 && selectedExpenseIds.length === filteredExpenses.filter(e => !e.groupId && e.status !== 'pago').length}
+                      onCheckedChange={(checked) => handleSelectAllExpenses(!!checked, filteredExpenses)}
+                      aria-label="Selecionar todas"
+                    />
+                  </TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead>Relacionado</TableHead>
                   <TableHead>Categoria</TableHead>
@@ -629,11 +873,29 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
               </TableHeader>
               <TableBody>
                 {(() => {
-                  const renderRow = (expense: Expense) => {
+                  const renderNormalRow = (expense: Expense, isChild: boolean = false) => {
                       const pendingValue = expense.value - (expense.paidValue || 0);
                       return (
-                        <TableRow key={expense.id}>
-                          <TableCell className="font-medium">
+                        <TableRow 
+                          key={expense.id}
+                          className={cn(
+                            isChild && "bg-muted/10 hover:bg-muted/20 border-l-2 border-l-primary/30 backdrop-blur-sm"
+                          )}
+                        >
+                          <TableCell className="w-12 text-center">
+                            {isChild ? (
+                              <span className="text-muted-foreground/30 font-mono select-none">└─</span>
+                            ) : (
+                              (!expense.groupId && expense.status !== 'pago') ? (
+                                <Checkbox
+                                  checked={selectedExpenseIds.includes(expense.id)}
+                                  onCheckedChange={(checked) => handleSelectExpense(expense.id, !!checked)}
+                                  aria-label={`Selecionar ${expense.description}`}
+                                />
+                              ) : null
+                            )}
+                          </TableCell>
+                          <TableCell className={cn("font-medium", isChild && "pl-6 text-muted-foreground")}>
                             {expense.description}
                           </TableCell>
                           <TableCell>
@@ -702,7 +964,7 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
                           <TableCell>{formatCurrency(expense.value)}</TableCell>
                           <TableCell className={cn(pendingValue > 0 ? 'text-red-500' : 'text-green-600')}>{formatCurrency(pendingValue)}</TableCell>
                           <TableCell>
-                            <Badge variant={expense.status === 'pago' ? 'default' : expense.status === 'atraso' ? 'destructive' : expense.status === 'parcial' ? 'secondary' : 'secondary'}
+                            <Badge variant={expense.status === 'pago' ? 'default' : expense.status === 'atrasado' ? 'destructive' : expense.status === 'parcial' ? 'secondary' : 'secondary'}
                                   className={cn(
                                       expense.status === 'pago' && 'bg-green-600',
                                       expense.status === 'parcial' && 'bg-orange-500',
@@ -802,21 +1064,238 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
                       );
                   };
 
-                  if (filteredExpenses.length === 0) {
+                  const renderGroupRow = (groupExpense: Expense & { isGroup?: boolean; children?: Expense[] }) => {
+                      const isExpanded = expandedGroupIds.includes(groupExpense.groupId!);
+                      const pendingValue = groupExpense.value - (groupExpense.paidValue || 0);
+
+                      const mainRow = (
+                        <TableRow 
+                          key={groupExpense.id} 
+                          className="bg-muted/30 border-l-4 border-l-primary hover:bg-muted/40 transition-colors shadow-sm"
+                        >
+                          <TableCell className="w-12 text-center text-primary/70">
+                            <FileArchive className="h-4 w-4" />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <button 
+                              onClick={() => toggleGroupExpansion(groupExpense.groupId!)}
+                              className="inline-flex items-center gap-2 hover:text-primary transition-colors focus:outline-none w-full text-left"
+                            >
+                              <ChevronRight className={cn("h-4 w-4 transition-transform duration-200 text-muted-foreground", isExpanded ? "rotate-90 text-primary" : "")} />
+                              <span className="font-semibold text-primary/95 flex items-center gap-2">
+                                {groupExpense.groupDescription}
+                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/20 bg-primary/5 text-primary">
+                                  {groupExpense.children?.length} itens
+                                </Badge>
+                              </span>
+                            </button>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {groupExpense.driverId && (
+                                <button
+                                  onClick={() => handleViewDriver(groupExpense.driverId!)}
+                                  disabled={isLoadingEntity}
+                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                                  title={`Motorista: ${groupExpense.driverName || 'N/A'}`}
+                                >
+                                  <Truck className="h-4 w-4" />
+                                </button>
+                              )}
+                              {groupExpense.quoteId && (
+                                <button
+                                  onClick={() => handleViewQuote(groupExpense.quoteId!)}
+                                  disabled={isLoadingEntity}
+                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors cursor-pointer"
+                                  title={`Cotação`}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </button>
+                              )}
+                              {groupExpense.talentId && (
+                                <button
+                                  onClick={() => handleViewTalent(groupExpense.talentId!)}
+                                  disabled={isLoadingEntity}
+                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60 transition-colors cursor-pointer"
+                                  title={`Talento: ${groupExpense.talentName || 'N/A'}`}
+                                >
+                                  <User2 className="h-4 w-4" />
+                                </button>
+                              )}
+                              {groupExpense.customerId && (
+                                <button
+                                  onClick={() => handleViewCustomer(groupExpense.customerId!)}
+                                  disabled={isLoadingEntity}
+                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                  title={`Cliente/Fornecedor: ${groupExpense.customerName || 'N/A'}`}
+                                >
+                                  <Building2 className="h-4 w-4" />
+                                </button>
+                              )}
+                              {groupExpense.ownerId && (
+                                <button
+                                  onClick={() => handleViewOwner(groupExpense.ownerId!)}
+                                  disabled={isLoadingEntity}
+                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+                                  title={`Proprietário: ${groupExpense.ownerName || 'N/A'}`}
+                                >
+                                  <Briefcase className="h-4 w-4" />
+                                </button>
+                              )}
+                              {!groupExpense.driverId && !groupExpense.quoteId && !groupExpense.talentId && !groupExpense.customerId && !groupExpense.ownerId && (
+                                <span className="text-xs text-muted-foreground pt-1">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{groupExpense.categoryName}</TableCell>
+                          <TableCell>{format(parseISO(groupExpense.dueDate), 'dd/MM/yyyy')}</TableCell>
+                          <TableCell className="font-semibold">{formatCurrency(groupExpense.value)}</TableCell>
+                          <TableCell className={cn("font-semibold", pendingValue > 0 ? 'text-red-500' : 'text-green-600')}>
+                            {formatCurrency(pendingValue)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={groupExpense.status === 'pago' ? 'default' : groupExpense.status === 'parcial' ? 'secondary' : 'secondary'}
+                              className={cn(
+                                groupExpense.status === 'pago' && 'bg-green-600 hover:bg-green-700',
+                                groupExpense.status === 'parcial' && 'bg-orange-500 hover:bg-orange-600',
+                                groupExpense.status === 'pendente' && isPast(parseISO(groupExpense.dueDate)) && !isSameDay(parseISO(groupExpense.dueDate), new Date()) && 'bg-red-500 hover:bg-red-600 animate-pulse'
+                              )}
+                            >
+                              {groupExpense.status === 'pendente' && isPast(parseISO(groupExpense.dueDate)) && !isSameDay(parseISO(groupExpense.dueDate), new Date()) ? 'atrasado' : groupExpense.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right space-x-1">
+                            <DropdownMenu modal={false}>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Ações do Grupo</DropdownMenuLabel>
+                                {groupExpense.status !== 'pago' && canApprovePayment && (
+                                  <DropdownMenuItem onSelect={() => handleOpenPayDialog(groupExpense)}>
+                                    <DollarSign className="mr-2 h-4 w-4"/>Pagar Lote / Comprovativo
+                                  </DropdownMenuItem>
+                                )}
+                                {(groupExpense.status === 'pago' || groupExpense.status === 'parcial') && (
+                                  <>
+                                    {groupExpense.children?.some(c => c.proofs && c.proofs.length > 0) && (
+                                      <DropdownMenuItem onSelect={() => {
+                                        const syntheticProofs = groupExpense.children!.flatMap(c => c.proofs || []);
+                                        const uniqueProofs = syntheticProofs.filter((v, i, a) => a.findIndex(t => t.url === v.url) === i);
+                                        const groupWithUniqueProofs = { ...groupExpense, proofs: uniqueProofs };
+                                        handleOpenProofsDialog(groupWithUniqueProofs);
+                                      }}>
+                                        <FileArchive className="mr-2 h-4 w-4"/>Ver Comprovativos do Grupo
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canApprovePayment && (
+                                      <DropdownMenuItem onSelect={() => handleRevertPayment(groupExpense)}>
+                                        <RotateCcw className="mr-2 h-4 w-4"/>Reverter Pagamento Lote
+                                      </DropdownMenuItem>
+                                    )}
+                                  </>
+                                )}
+                                
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger><Move className="mr-2 h-4 w-4" /> Relacionar Grupo a</DropdownMenuSubTrigger>
+                                  <DropdownMenuPortal>
+                                    <DropdownMenuSubContent>
+                                      {!groupExpense.driverId ? (
+                                        <DropdownMenuItem onSelect={() => handleOpenLinkDialog(groupExpense, 'driver')}>
+                                          <Truck className="mr-2 h-4 w-4" /> Motorista
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onSelect={() => handleUnlink(groupExpense, 'driver')}>
+                                          <Truck className="mr-2 h-4 w-4 text-destructive" /> Desvincular Motorista
+                                        </DropdownMenuItem>
+                                      )}
+                                      
+                                      {!groupExpense.quoteId ? (
+                                        <DropdownMenuItem onSelect={() => handleOpenLinkDialog(groupExpense, 'quote')}>
+                                          <FileText className="mr-2 h-4 w-4" /> Cotação
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onSelect={() => handleUnlink(groupExpense, 'quote')}>
+                                          <FileText className="mr-2 h-4 w-4 text-destructive" /> Desvincular Cotação
+                                        </DropdownMenuItem>
+                                      )}
+                                      
+                                      {!groupExpense.talentId ? (
+                                        <DropdownMenuItem onSelect={() => handleOpenLinkDialog(groupExpense, 'talent')}>
+                                          <User2 className="mr-2 h-4 w-4" /> Talento
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onSelect={() => handleUnlink(groupExpense, 'talent')}>
+                                          <User2 className="mr-2 h-4 w-4 text-destructive" /> Desvincular Talento
+                                        </DropdownMenuItem>
+                                      )}
+                                      
+                                      {!groupExpense.customerId ? (
+                                        <DropdownMenuItem onSelect={() => handleOpenLinkDialog(groupExpense, 'customer')}>
+                                          <Building2 className="mr-2 h-4 w-4" /> Cliente/Forn.
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onSelect={() => handleUnlink(groupExpense, 'customer')}>
+                                          <Building2 className="mr-2 h-4 w-4 text-destructive" /> Desvincular Cliente/Forn.
+                                        </DropdownMenuItem>
+                                      )}
+
+                                      {!groupExpense.ownerId ? (
+                                        <DropdownMenuItem onSelect={() => handleOpenLinkDialog(groupExpense, 'owner')}>
+                                          <Briefcase className="mr-2 h-4 w-4" /> Proprietário
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onSelect={() => handleUnlink(groupExpense, 'owner')}>
+                                          <Briefcase className="mr-2 h-4 w-4 text-destructive" /> Desvincular Proprietário
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuSubContent>
+                                  </DropdownMenuPortal>
+                                </DropdownMenuSub>
+
+                                <DropdownMenuItem 
+                                  onSelect={() => handleUngroupExpenses(groupExpense.groupId!)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4"/>Desfazer Grupo (Desagrupar)
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+
+                      if (isExpanded && groupExpense.children) {
+                          return [
+                              mainRow,
+                              ...groupExpense.children.map(child => renderNormalRow(child, true))
+                          ];
+                      }
+
+                      return [mainRow];
+                  };
+
+                  if (processedExpenses.length === 0) {
                       return (
                           <TableRow>
-                              <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">Nenhuma despesa encontrada.</TableCell>
+                              <TableCell colSpan={9} className="text-center h-24 text-muted-foreground">Nenhuma despesa encontrada.</TableCell>
                           </TableRow>
                       );
                   }
 
                   if (groupBy === 'none') {
-                      return filteredExpenses.map(renderRow);
+                      return processedExpenses.flatMap(exp => {
+                          if (exp.isGroup) {
+                              return renderGroupRow(exp);
+                          }
+                          return renderNormalRow(exp);
+                      });
                   }
 
                   if (groupBy === 'category') {
-                      const grouped: Record<string, Expense[]> = {};
-                      filteredExpenses.forEach(exp => {
+                      const grouped: Record<string, typeof processedExpenses> = {};
+                      processedExpenses.forEach(exp => {
                           const cat = exp.categoryName || 'Sem Categoria';
                           if (!grouped[cat]) grouped[cat] = [];
                           grouped[cat].push(exp);
@@ -825,11 +1304,16 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
                       return Object.entries(grouped).map(([category, exps]) => (
                           <React.Fragment key={category}>
                               <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                  <TableCell colSpan={8} className="font-semibold text-primary py-2 uppercase text-xs tracking-wider">
+                                  <TableCell colSpan={9} className="font-semibold text-primary py-2 uppercase text-xs tracking-wider">
                                       {category} <span className="text-muted-foreground ml-2">({exps.length} {exps.length === 1 ? 'item' : 'itens'})</span>
                                   </TableCell>
                               </TableRow>
-                              {exps.map(renderRow)}
+                              {exps.flatMap(exp => {
+                                  if (exp.isGroup) {
+                                      return renderGroupRow(exp);
+                                  }
+                                  return renderNormalRow(exp);
+                              })}
                           </React.Fragment>
                       ));
                   }
@@ -1436,6 +1920,83 @@ export function ExpenseManagement({ monthKey, expenses, expenseCategories, onDat
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para Descrição do Grupo de Despesas */}
+      <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agrupar Despesas Selecionadas</DialogTitle>
+            <DialogDescription>
+              Dê uma descrição para este grupo de despesas unificadas. Isso ajudará na identificação do pagamento único.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="groupDescription">Descrição do Grupo</Label>
+              <Input 
+                id="groupDescription" 
+                placeholder="Ex: Despesas de Viagem - Maio 2026" 
+                value={groupDescription} 
+                onChange={(e) => setGroupDescription(e.target.value)}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-md border">
+              <p className="font-semibold mb-1">Resumo das Despesas Selecionadas:</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Total de Itens: {selectedExpenseIds.length} despesas</li>
+                <li>Valor Total Unificado: {formatCurrency(
+                  expenses
+                    .filter(e => selectedExpenseIds.includes(e.id))
+                    .reduce((sum, e) => sum + e.value, 0)
+                )}</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="secondary" disabled={isSubmitting}>Cancelar</Button></DialogClose>
+            <Button 
+              onClick={handleGroupExpenses} 
+              disabled={isSubmitting || !groupDescription.trim()}
+              className="bg-gradient-to-r from-primary to-violet-600 text-white font-semibold"
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Agrupamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Banner Flutuante de Ações para Agrupamento */}
+      {selectedExpenseIds.length >= 2 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-background/95 backdrop-blur-md border border-primary/30 shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)] rounded-full px-6 py-4 flex items-center gap-6 animate-in slide-in-from-bottom-5 duration-300">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+            </span>
+            <span className="text-sm font-medium">
+              {selectedExpenseIds.length} despesas selecionadas
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={() => setSelectedExpenseIds([])}
+              className="hover:bg-muted/50 rounded-full"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => setIsGroupDialogOpen(true)}
+              className="bg-gradient-to-r from-primary to-violet-600 hover:from-primary/95 hover:to-violet-650/95 text-white font-semibold rounded-full px-4 shadow-[0_0_10px_rgba(var(--primary-rgb),0.2)]"
+            >
+              Agrupar Selecionadas
+            </Button>
+          </div>
+        </div>
+      )}
 
     </>
   );

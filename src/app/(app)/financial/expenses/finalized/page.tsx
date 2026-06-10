@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2, Archive, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
@@ -74,15 +75,15 @@ export default function FinalizedExpensesPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/financial/expenses')} className="mb-8">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel de Despesas
-      </Button>
-      <div className="space-y-2 mb-8">
-        <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-          <Archive className="h-8 w-8"/>
-          Despesas Finalizadas
-        </h1>
-        <p className="text-muted-foreground">Histórico de todas as despesas de meses que foram finalizados.</p>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
+            <Archive className="h-8 w-8"/>
+            Despesas Finalizadas
+          </h1>
+          <p className="text-muted-foreground">Histórico de todas as despesas de meses que foram finalizados.</p>
+        </div>
+        <BackButton href="/financial/expenses" label="Voltar ao Painel de Despesas" className="mb-0 mt-2" />
       </div>
 
         {sortedMonths.length > 0 ? (

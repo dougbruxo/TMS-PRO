@@ -5,11 +5,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { UserManagement } from '@/components/UserManagement';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { User, ActivityRecord } from '@/lib/types';
 import { authFetch } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function ManageUsersPage() {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -64,18 +65,15 @@ export default function ManageUsersPage() {
   
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => router.push('/settings')} 
-          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
-        <div className="h-4 w-px bg-border hidden md:block" />
-        <h1 className="text-xl font-bold text-primary whitespace-nowrap">Gerenciar Usuários</h1>
-      </div>
+      <PageHeader
+        icon={<Users className="h-4 w-4" />}
+        badge="Administração do Sistema"
+        titlePrefix="Gerenciar"
+        titleHighlight="Usuários"
+        description="Gerencie contas de usuário, permissões, histórico de logins e níveis de acesso."
+        backHref="/settings"
+        backLabel="Voltar para Configurações"
+      />
       
       <UserManagement 
         users={users} 

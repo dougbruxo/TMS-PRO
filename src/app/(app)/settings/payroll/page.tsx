@@ -13,7 +13,7 @@ import type { PayrollSettings, PricingSettings } from '@/lib/types';
 import { authFetch } from '@/lib/api-client';
 
 export default function PayrollSettingsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshPricingSettings, refreshNotificationCounts } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -61,6 +61,12 @@ export default function PayrollSettingsPage() {
             body: JSON.stringify({ payroll: settings }),
         });
         if (response.ok) {
+            if (refreshPricingSettings) {
+                await refreshPricingSettings();
+            }
+            if (refreshNotificationCounts) {
+                await refreshNotificationCounts();
+            }
             toast({ title: 'Sucesso!', description: 'Configurações da folha de pagamento salvas.' });
             await fetchAllData();
         } else {

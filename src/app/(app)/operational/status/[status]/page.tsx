@@ -37,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { QuoteCard } from '@/components/QuoteCard';
+import { QuickCteDialog } from '@/components/QuickCteDialog';
 import { v4 as uuidv4 } from 'uuid';
 import { addDays, format, parseISO } from 'date-fns';
 import { DriverManagement } from '@/components/DriverManagement';
@@ -48,6 +49,7 @@ import { NfeDivergenceDialog, NfeDivergenceData } from '@/components/NfeDivergen
 import { NfeAttachmentDialog } from '@/components/NfeAttachmentDialog';
 import { FileText } from 'lucide-react';
 import { StarRating } from '@/components/StarRating';
+import { PageHeader } from '@/components/PageHeader';
 
 
 const statusLabelMap: Record<string, string> = {
@@ -83,6 +85,9 @@ const QuoteCardSkeleton = () => (
 
 export default function StatusDetailPage() {
   const { user, loading: authLoading } = useAuth();
+  
+  const canAssignDriver = user?.role === 'admin' || user?.subPermissions?.operational?.canAssignDriver !== false;
+  const canEditJourney = user?.role === 'admin' || user?.subPermissions?.operational?.canEditJourney !== false;
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -158,6 +163,9 @@ export default function StatusDetailPage() {
   const [isGenerateOCDialogOpen, setIsGenerateOCDialogOpen] = useState(false);
   const [ocUrl, setOcUrl] = useState('');
 
+  const [isQuickCteOpen, setIsQuickCteOpen] = useState(false);
+  const [quickCteQuote, setQuickCteQuote] = useState<Quote | null>(null);
+
   const [availableStatuses, setAvailableStatuses] = useState<QuoteStatus[]>([]);
   const [nextStatus, setNextStatus] = useState<QuoteStatus>('Coleta');
   const [nfNumber, setNfNumber] = useState('');
@@ -225,7 +233,19 @@ export default function StatusDetailPage() {
         let statusesToShow: QuoteStatus[] = [];
         let defaultNextStatus: QuoteStatus;
 
-        if (canSkipSteps && currentStatusIndex < operationalStatuses.length - 1) {
+        if (!canEditJourney) {
+            statusesToShow = [quote.status];
+            defaultNextStatus = quote.status;
+        } else if (effectiveStatus === 'Em Rota') {
+            const allowedNext: QuoteStatus[] = ['Em Rota'];
+            if (canSkipSteps) {
+                allowedNext.push('Entregue', 'Finalizado');
+            } else {
+                allowedNext.push('Entregue');
+            }
+            statusesToShow = allowedNext;
+            defaultNextStatus = 'Em Rota';
+        } else if (canSkipSteps && currentStatusIndex < operationalStatuses.length - 1) {
             statusesToShow = operationalStatuses.slice(currentStatusIndex + 1);
             defaultNextStatus = statusesToShow[0];
         } else {
@@ -256,9 +276,11 @@ export default function StatusDetailPage() {
         setMaskedExpense('R$ 0,00');
         
         // Sempre pre-popular o último motorista selecionado (ex: persiste o motorista da Coleta para a Rota)
+        // EXCETO se a cotação estiver no galpão, pois a coleta foi finalizada e a próxima etapa precisará de nova definição.
+        const isWarehouseStatus = ['No Galpão', 'Aguardando Saída', 'Em Carregamento'].includes(quote.status);
         const sortedHistory = [...(quote.operationalHistory || [])].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         const latestDriverEvent = sortedHistory.find(h => h.driverId);
-        if (latestDriverEvent) {
+        if (latestDriverEvent && !isWarehouseStatus) {
             setDriverId(latestDriverEvent.driverId);
             setSelectedDriver({
                 id: latestDriverEvent.driverId,
@@ -272,7 +294,7 @@ export default function StatusDetailPage() {
         setConsultationNumber('');
         setDriverRating(0);
         setIsManageDialogOpen(true);
-    }, [user]);
+    }, [user, canEditJourney]);
 
   
   const handleOpenDetailsDialog = useCallback((quote: Quote) => {
@@ -305,20 +327,37 @@ export default function StatusDetailPage() {
         setIsSubmitting(true);
 
         const expenseValue = expense;
-        const selectedDriver = drivers.find(d => d.id === driverId);
+        const driverObj = drivers.find(d => d.id === driverId) || 
+                          (selectedDriver && selectedDriver.id === driverId ? selectedDriver : null) || 
+                          searchedDrivers.find(d => d.id === driverId) || 
+                          null;
+
         const canSkipSteps = (user?.role === 'admin' || user?.role === 'user') || selectedQuote.freightMode === 'dedicado';
+
+        // Detecção de mudança de motorista
+        const sortedHistory = [...(selectedQuote.operationalHistory || [])].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const latestDriverEvent = sortedHistory.find(h => h.driverId);
+        const previousDriverId = latestDriverEvent?.driverId || undefined;
+        const isDriverChanged = driverId !== previousDriverId;
 
         let eventAction: string = 'ETAPA_OPERACIONAL';
         let details: string = `Status alterado para ${nextStatus}.`;
         
-        const updates: Partial<Quote> = { status: nextStatus, nfNumber, volumeCount: Number(volumeCount) };
+        const updates: Partial<Quote> = { 
+            status: nextStatus, 
+            nfNumber, 
+            volumeCount: Number(volumeCount),
+            driverId: driverId || null,
+            driverName: driverObj?.name || null
+        };
         
-        if (selectedQuote.status === 'Fechada') {
+        // 1. Calcular transições de status e ações operacionais principais
+        if (selectedQuote.status === 'Fechada' || selectedQuote.status === 'Coleta' || selectedQuote.status === 'Aguardando Recebimento') {
             if (nextStatus === 'No Galpão') {
                 if (driverId) {
                     updates.status = 'Coleta';
                     eventAction = 'ATRIBUICAO_COLETA_GALPAO';
-                    details = `Motorista ${selectedDriver?.name} atribuído para coleta para o galpão.`;
+                    details = `Motorista ${driverObj?.name} atribuído para coleta para o galpão.`;
                 } else {
                     updates.status = 'Aguardando Recebimento';
                     eventAction = 'ENVIO_DIRETO_GALPAO';
@@ -332,15 +371,24 @@ export default function StatusDetailPage() {
                 }
                 updates.status = 'Coleta';
                 eventAction = 'COLETA_PARA_ENTREGA_DIRETA';
-                details = `Motorista ${selectedDriver?.name} atribuído para coleta e entrega direta.`;
+                details = `Motorista ${driverObj?.name} atribuído para coleta e entrega direta.`;
             } else {
                 updates.status = 'Coleta';
-                details = `Cotação movida para coleta com motorista ${selectedDriver?.name || 'não definido'}.`;
+                details = `Cotação movida para coleta com motorista ${driverObj?.name || 'não definido'}.`;
             }
         } else if (selectedQuote.status === 'No Galpão' && nextStatus === 'Em Rota') {
             updates.status = 'Aguardando Saída';
             eventAction = 'SOLICITACAO_SAIDA_GALPAO';
             details = `Solicitação de saída do galpão enviada para a equipe de Recebimento.`;
+        }
+
+        // 2. Se houver troca de motorista, registra a informação nos detalhes e ajusta o log se necessário
+        if (isDriverChanged) {
+            const driverChangeText = `Troca de motorista realizada. Motorista anterior: ${latestDriverEvent?.driverName || 'Nenhum'}. Novo motorista: ${driverObj?.name || 'Não definido'}.`;
+            details = `${driverChangeText} ${details}`;
+            if (eventAction === 'ETAPA_OPERACIONAL') {
+                eventAction = 'TROCA_MOTORISTA';
+            }
         }
 
 
@@ -349,15 +397,15 @@ export default function StatusDetailPage() {
         }
 
         if (expenseValue > 0) details += ` Despesa adicionada: ${expenseValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
-        if (selectedDriver) details += ` Motorista: ${selectedDriver.name}.`;
+        if (driverObj) details += ` Motorista: ${driverObj.name}.`;
         if (consultationNumber) details += ` N° Consulta: ${consultationNumber}.`;
 
         const operationalEventData: Partial<OperationalEvent> = {
             action: eventAction,
             details: details,
             expense: expenseValue > 0 ? expenseValue : undefined,
-            driverId: selectedDriver ? selectedDriver.id : undefined,
-            driverName: selectedDriver ? selectedDriver.name : undefined,
+            driverId: driverObj ? driverObj.id : undefined,
+            driverName: driverObj ? driverObj.name : undefined,
             consultationNumber: consultationNumber,
         };
         
@@ -386,7 +434,7 @@ export default function StatusDetailPage() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [selectedQuote, user, expense, driverId, nextStatus, consultationNumber, drivers, toast, fetchData, nfNumber, volumeCount]);
+    }, [selectedQuote, user, expense, driverId, nextStatus, consultationNumber, drivers, searchedDrivers, selectedDriver, toast, fetchData, nfNumber, volumeCount, driverRating]);
     
 
     
@@ -406,10 +454,16 @@ export default function StatusDetailPage() {
             newTotalExpense = Math.max(0, newTotalExpense - lastEvent.expense);
         }
     
+        const lastDriverEvent = [...newHistory].reverse().find(e => e.driverId);
+        const prevDriverId = lastDriverEvent ? lastDriverEvent.driverId : null;
+        const prevDriverName = lastDriverEvent ? lastDriverEvent.driverName : null;
+    
         const body: any = {
             status: prevStatus,
             operationalHistory: newHistory,
             totalExpense: newTotalExpense,
+            driverId: prevDriverId,
+            driverName: prevDriverName,
             user,
         };
 
@@ -635,27 +689,45 @@ export default function StatusDetailPage() {
                 return { cnpjCpf, name, ie, address, city, state, zipCode, cMun };
             };
             
-            const nfeParties = { emitente: extractParty('emit'), destinatario: extractParty('dest') };
+            const emitente = extractParty('emit');
+            const destinatario = extractParty('dest');
+            
+            // Determinar tomador de forma inteligente para visualização de confirmação
+            let tomador = null;
+            const quoteTomadorLower = (selectedQuoteForXml.tomador || '').toLowerCase().trim();
+            const quoteRemetenteLower = (selectedQuoteForXml.remetente || '').toLowerCase().trim();
+            const quoteDestinatarioLower = (selectedQuoteForXml.destinatario || '').toLowerCase().trim();
+            
+            const emitNameLower = (emitente?.name || '').toLowerCase().trim();
+            const destNameLower = (destinatario?.name || '').toLowerCase().trim();
+            
+            if (
+              quoteTomadorLower === 'remetente' || 
+              (quoteRemetenteLower && (quoteTomadorLower === quoteRemetenteLower || quoteTomadorLower.includes(quoteRemetenteLower) || quoteRemetenteLower.includes(quoteTomadorLower))) ||
+              (emitNameLower && (emitNameLower.includes(quoteTomadorLower) || quoteTomadorLower.includes(emitNameLower)))
+            ) {
+              tomador = emitente;
+            } else if (
+              quoteTomadorLower === 'destinatario' || 
+              (quoteDestinatarioLower && (quoteTomadorLower === quoteDestinatarioLower || quoteTomadorLower.includes(quoteDestinatarioLower) || quoteDestinatarioLower.includes(quoteTomadorLower))) ||
+              (destNameLower && (destNameLower.includes(quoteTomadorLower) || quoteTomadorLower.includes(destNameLower)))
+            ) {
+              tomador = destinatario;
+            } else {
+              tomador = emitente || destinatario;
+            }
+            
+            const nfeParties = { emitente, destinatario, tomador };
             
             const nfeWeight = Number(pesoB || 0);
             const nfeVolumes = Number(qVol || 0);
             const quoteWeight = Number(selectedQuoteForXml.peso || 0);
             const quoteVolumes = Number(selectedQuoteForXml.volumeCount || selectedQuoteForXml.quantidade || 0);
             
-            const hasWeightConflict = quoteWeight > 0 && nfeWeight > 0 && Math.abs(quoteWeight - nfeWeight) > 0.1;
-            const hasVolumeConflict = quoteVolumes > 0 && nfeVolumes > 0 && quoteVolumes !== nfeVolumes;
-
-            if (hasWeightConflict || hasVolumeConflict) {
-                 setDivergenceData({ quoteWeight, quoteVolumes, nfeWeight, nfeVolumes, xmlContent, nfeParties } as NfeDivergenceData & { nfeParties: any });
-                 setIsSubmitting(false);
-                 setIsDivergenceDialogOpen(true);
-                 return;
-            }
-
-            const finalWeight = quoteWeight > 0 ? quoteWeight : nfeWeight;
-            const finalVolumes = quoteVolumes > 0 ? quoteVolumes : nfeVolumes;
-            
-            await proceedWithXmlUpload(finalWeight, finalVolumes, xmlContent, nNF, chNFe, selectedQuoteForXml.id, nfeParties);
+            // Sempre exibir a tela de conferência e confirmação para segurança total
+            setDivergenceData({ quoteWeight, quoteVolumes, nfeWeight, nfeVolumes, xmlContent, nfeParties } as any);
+            setIsSubmitting(false);
+            setIsDivergenceDialogOpen(true);
         } catch(err: any) {
             toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível processar o XML.' });
             setIsSubmitting(false);
@@ -664,9 +736,41 @@ export default function StatusDetailPage() {
     };
 
     const handleViewNfe = (quote: Quote) => {
+        setSelectedQuote(quote);
         setXmlContentToView(quote.nfeXml || '');
         setNfeChaveToView(quote.nfeChave || '');
         setIsNfeViewerOpen(true);
+    };
+
+    const handleRemoveNfe = async (quote: Quote) => {
+        if (!user) return;
+        setIsSubmitting(true);
+        try {
+            const response = await authFetch(`/api/quotes/${quote.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nfeXml: null,
+                    nfeChave: null,
+                    nfNumber: null,
+                    peso: 0,
+                    volumeCount: 0,
+                    user
+                }),
+            });
+            if (response.ok) {
+                toast({ title: 'Sucesso!', description: 'NF-e removida com sucesso da cotação.' });
+                setIsNfeViewerOpen(false);
+                await fetchData();
+            } else {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Falha ao remover XML da cotação.');
+            }
+        } catch(err: any) {
+            toast({ variant: 'destructive', title: 'Erro', description: err.message });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const filteredAndSortedQuotes = useMemo(() => {
@@ -836,7 +940,13 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
             title={`Anexar NF-e para ${selectedQuoteForXml?.quoteCode || 'Cotação'}`}
         />
         
-        <NfeViewerDialog isOpen={isNfeViewerOpen} onOpenChange={setIsNfeViewerOpen} xmlContent={xmlContentToView} nfeChave={nfeChaveToView} />
+        <NfeViewerDialog 
+            isOpen={isNfeViewerOpen} 
+            onOpenChange={setIsNfeViewerOpen} 
+            xmlContent={xmlContentToView} 
+            nfeChave={nfeChaveToView} 
+            onRemove={selectedQuote ? () => handleRemoveNfe(selectedQuote) : undefined}
+        />
         <NfeDivergenceDialog 
             isOpen={isDivergenceDialogOpen} 
             onOpenChange={setIsDivergenceDialogOpen} 
@@ -851,17 +961,21 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
             }}
         />
 
-        {quoteCodeFilter ? (
-          <Button variant="outline" onClick={() => router.push(`/operational/status/${statusParam}`)} className="mb-8">
-            &larr; Ver todas as cotações
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => router.push('/operational')} className="mb-8">
-            &larr; Voltar para Área Operacional
-          </Button>
-        )}
+        {/* Efeitos de desfoque e brilho aurora neon atrás dos cards */}
+        <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10 animate-float-blur-1" />
+        <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10 animate-float-blur-2" />
+
+        <PageHeader
+            icon={<ClipboardCheck className="h-4 w-4" />}
+            badge={`Status: ${currentStatus || statusParam}`}
+            titlePrefix="Status:"
+            titleHighlight={currentStatus || statusParam}
+            description={quoteCodeFilter ? `Exibindo cotação filtrada sob o status ${currentStatus}.` : `Visualize e gerencie todas as cotações sob o status de ${currentStatus}.`}
+            backHref={quoteCodeFilter ? `/operational/status/${statusParam}` : "/operational"}
+            backLabel={quoteCodeFilter ? "Ver Todas as Cotações" : "Voltar para Área Operacional"}
+        />
+
         <div className="space-y-4 mb-8">
-            <QuoteCard.PageTitle currentStatus={currentStatus} />
             {!quoteCodeFilter && (
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -869,7 +983,7 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
                         placeholder="Filtrar por remetente, destino, nº cotação, nº NF, motorista ou placa..."
                         value={filter}
                         onChange={e => setFilter(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 border border-border/40 bg-card/45 backdrop-blur-2xl"
                     />
                 </div>
             )}
@@ -882,7 +996,7 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
         ) : filteredAndSortedQuotes.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredAndSortedQuotes.map(quote => {
-                    const quoteIsActionable = ['Fechada', 'Coleta', 'No Galpão', 'Entregue'].includes(quote.status);
+                    const quoteIsActionable = ['Fechada', 'Coleta', 'No Galpão', 'Em Rota', 'Entregue'].includes(quote.status);
                     return (
                         <QuoteCard 
                             key={quote.id} 
@@ -905,6 +1019,18 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
                             onManualConfirmDelivery={handleManualConfirmDelivery}
                         >
                              <CardFooter className="p-2 pt-0 flex flex-col gap-2">
+                                 {!(quote as any).cteChave && !(quote as any).cteId && quote.nfeXml && (
+                                     <Button 
+                                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                                         onClick={(e) => {
+                                             e.stopPropagation();
+                                             setQuickCteQuote(quote);
+                                             setIsQuickCteOpen(true);
+                                         }}
+                                     >
+                                         <FileText className="mr-2 h-4 w-4" /> CT-e Rápido
+                                     </Button>
+                                 )}
                                  {(quote.nfeXml || quote.nfeChave) ? (
                                      <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleViewNfe(quote)}>
                                          <FileText className="mr-2 h-4 w-4" /> Visualizar NF-e
@@ -945,7 +1071,7 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
                 Atualize o status operacional, adicione despesas e informações do motorista.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[50vh] overflow-y-auto pr-2">
               <div className="space-y-2">
                 <Label htmlFor="next-status">Próximo Status</Label>
                  <Select value={nextStatus} onValueChange={(value) => setNextStatus(value as QuoteStatus)}>
@@ -999,8 +1125,8 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
                                     placeholder="Nenhum motorista selecionado"
                                     className="flex-grow"
                                 />
-                                <Button type="button" variant="outline" size="icon" onClick={() => setIsDriverSearchOpen(true)}><UserSearch className="h-4 w-4"/></Button>
-                                <Button type="button" variant="outline" size="icon" onClick={() => setIsAddDriverDialogOpen(true)}><UserPlus className="h-4 w-4"/></Button>
+                                <Button type="button" variant="outline" size="icon" onClick={() => setIsDriverSearchOpen(true)} disabled={!canAssignDriver}><UserSearch className="h-4 w-4"/></Button>
+                                <Button type="button" variant="outline" size="icon" onClick={() => setIsAddDriverDialogOpen(true)} disabled={!canAssignDriver}><UserPlus className="h-4 w-4"/></Button>
                              </div>
                         </div>
                         <div className="space-y-2">
@@ -1133,6 +1259,14 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
             </DialogContent>
         </Dialog>
 
+        <QuickCteDialog
+            isOpen={isQuickCteOpen}
+            onOpenChange={setIsQuickCteOpen}
+            quote={quickCteQuote}
+            drivers={drivers}
+            onSuccess={fetchData}
+        />
+
 
         <AlertDialog open={!!quoteForProofAction && !!quoteForProofAction.proofOfDeliveryUrl} onOpenChange={(open) => !open && setQuoteForProofAction(null)}>
             <AlertDialogContent>
@@ -1151,6 +1285,50 @@ const handleManualConfirmDelivery = async (quote: Quote) => {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+
+        <style>{`
+          @keyframes floatBlur1 {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              background-color: hsl(var(--primary) / 0.15);
+            }
+            25% {
+              transform: translate(120px, 60px) scale(1.15);
+              background-color: rgba(99, 102, 241, 0.18);
+            }
+            50% {
+              transform: translate(40px, 160px) scale(0.95);
+              background-color: rgba(236, 72, 153, 0.14);
+            }
+            75% {
+              transform: translate(-80px, 100px) scale(1.08);
+              background-color: rgba(59, 130, 246, 0.18);
+            }
+          }
+
+          @keyframes floatBlur2 {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              background-color: rgba(168, 85, 247, 0.15);
+            }
+            33% {
+              transform: translate(-100px, -120px) scale(1.1);
+              background-color: rgba(59, 130, 246, 0.16);
+            }
+            66% {
+              transform: translate(80px, -60px) scale(0.9);
+              background-color: rgba(236, 72, 153, 0.14);
+            }
+          }
+
+          .animate-float-blur-1 {
+            animation: floatBlur1 28s infinite ease-in-out alternate !important;
+          }
+
+          .animate-float-blur-2 {
+            animation: floatBlur2 38s infinite ease-in-out alternate !important;
+          }
+        `}</style>
     </main>
   );
 }

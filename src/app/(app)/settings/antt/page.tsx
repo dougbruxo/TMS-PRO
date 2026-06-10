@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Save, Plus, Trash2, Info } from 'lucide-react';
+import { Loader2, Save, Plus, Trash2, Info } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
 import { authFetch } from '@/lib/api-client';
 import type { AnttCoefficient } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -153,20 +154,18 @@ export default function AnttSettingsPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/settings')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-primary">Tabela ANTT 2024</h1>
-            <p className="text-muted-foreground text-sm">Resolução nº 6.046/2024 - Coeficientes CCD e CC</p>
-          </div>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary">Tabela ANTT 2024</h1>
+          <p className="text-muted-foreground text-sm">Resolução nº 6.046/2024 - Coeficientes CCD e CC</p>
         </div>
-        <Button onClick={addNewRow} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Eixo
-        </Button>
+        <div className="flex items-center gap-4 mt-2">
+          <Button onClick={addNewRow} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Eixo
+          </Button>
+          <BackButton href="/settings" label="Voltar para Configurações" className="mb-0" />
+        </div>
       </div>
 
       <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900">

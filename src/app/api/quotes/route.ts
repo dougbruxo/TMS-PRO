@@ -20,13 +20,57 @@ export async function GET(request: Request) {
     const excludeStatus = searchParams.get('excludeStatus');
     const monthYear = searchParams.get('monthYear');
     const term = searchParams.get('term');
+    const paginated = searchParams.get('paginated') === 'true';
 
     let query: any = {};
     
     // Filtro de Segurança por Tenant — só restringe clientes
     if (authUser.role === 'cliente' || authUser.role === 'sub-cliente') {
         const tenantId = authUser.role === 'sub-cliente' ? authUser.parentId : authUser.userId;
-        query.userId = tenantId;
+        
+        const { db: dbTemp } = await connectToDatabase();
+        // Buscar todas as empresas vinculadas a este cliente B2B
+        const clientCompanies = await dbTemp.collection('client_companies').find({ userId: tenantId }).toArray();
+        const companyCnpjsCleaned = clientCompanies.map(c => c.cnpj.replace(/[^\d]/g, ''));
+        const companyCnpjsRaw = clientCompanies.map(c => c.cnpj);
+        const allCnpjs = Array.from(new Set([...companyCnpjsCleaned, ...companyCnpjsRaw]));
+        
+        const companyNames = clientCompanies.map(c => c.razaoSocial).filter(Boolean);
+        const companyNomes = clientCompanies.map(c => c.nome).filter(Boolean);
+        const companyNomesFantasia = clientCompanies.map(c => c.nomeFantasia).filter(Boolean);
+        
+        let customerIds: any[] = [];
+        let customerNames: string[] = [];
+        let customerNomes: string[] = [];
+        let customerNomesFantasia: string[] = [];
+        
+        if (allCnpjs.length > 0) {
+            const matchingCustomers = await dbTemp.collection('customers').find({ 
+              cnpj: { $in: allCnpjs } 
+            }).toArray();
+            matchingCustomers.forEach(c => {
+                customerIds.push(c._id.toHexString());
+                customerIds.push(c._id);
+                if (c.razaoSocial) customerNames.push(c.razaoSocial);
+                if (c.nome) customerNomes.push(c.nome);
+                if (c.nomeFantasia) customerNomesFantasia.push(c.nomeFantasia);
+            });
+        }
+        
+        const allPossibleNames = Array.from(new Set([
+          ...companyNames,
+          ...companyNomes,
+          ...companyNomesFantasia,
+          ...customerNames,
+          ...customerNomes,
+          ...customerNomesFantasia
+        ])).filter(name => name.trim().length > 0);
+        
+        query.$or = [
+          { userId: tenantId },
+          { tomadorId: { $in: customerIds } },
+          { tomador: { $in: allPossibleNames } }
+        ];
     } else if (authUser.role === 'user' || authUser.role === 'parceiro') {
         const { db: dbTemp } = await connectToDatabase();
         const userDoc = await dbTemp.collection('users').findOne({ _id: new ObjectId(authUser.userId) });
@@ -54,7 +98,9 @@ export async function GET(request: Request) {
             { nfNumber: { $regex: term, $options: 'i' } },
             { destinatario: { $regex: term, $options: 'i' } },
             { empresaDestino: { $regex: term, $options: 'i' } },
-            { remetente: { $regex: term, $options: 'i' } }
+            { remetente: { $regex: term, $options: 'i' } },
+            { cidadeOrigem: { $regex: term, $options: 'i' } },
+            { cidadeDestino: { $regex: term, $options: 'i' } }
         ];
         if (query.$or) {
             // Já existe um $or de segurança — combinar com $and
@@ -71,6 +117,8 @@ export async function GET(request: Request) {
             query.status = { $nin: ['Aberta', 'Em Análise'] };
         } else if (status === 'all_operational') {
             query.status = { $in: ['Fechada', 'Coleta', 'Aguardando Recebimento', 'No Galpão', 'Aguardando Saída', 'Em Carregamento'] };
+        } else if (status.includes(',')) {
+            query.status = { $in: status.split(',') };
         } else {
             query.status = status;
         }
@@ -95,12 +143,20 @@ export async function GET(request: Request) {
         billingHistory: 0,
     };
     
+    let totalCount = 0;
+    if (paginated) {
+        totalCount = await db.collection('quotes').countDocuments(query);
+    }
+    
     const queryBuilder = db.collection('quotes').find(query, { projection }).sort({ data: -1 });
 
     if (limitParam) {
         const limit = parseInt(limitParam, 10);
         const skip = (page - 1) * limit;
         queryBuilder.skip(skip).limit(limit);
+    } else if (paginated) {
+        // Limite padrão para paginação se não especificado
+        queryBuilder.skip((page - 1) * 20).limit(20);
     }
     
     const quotes = await queryBuilder.toArray();
@@ -109,6 +165,17 @@ export async function GET(request: Request) {
       const { _id, ...rest } = quote;
       return { id: _id.toHexString(), ...rest };
     });
+
+    if (paginated) {
+        const limit = limitParam ? parseInt(limitParam, 10) : 20;
+        return NextResponse.json({
+            quotes: quotesWithId,
+            totalCount,
+            page,
+            totalPages: Math.ceil(totalCount / limit),
+            limit
+        });
+    }
 
     return NextResponse.json(quotesWithId);
   } catch (error: any) {

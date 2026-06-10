@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { authFetch } from '@/lib/api-client';
+import { BackButton } from '@/components/BackButton';
 
 const cfopSchema = z.object({
     code: z.string().length(4, 'O código CFOP deve ter exatamente 4 dígitos.'),
@@ -102,18 +103,17 @@ export default function CfopSettingsPage() {
 
     return (
         <main className="container mx-auto p-4 md:p-8">
-            <Button variant="outline" onClick={() => router.push('/settings')} className="mb-8">
-                &larr; Voltar para Configurações
-            </Button>
-
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-primary">Códigos Fiscais (CFOP)</h1>
                     <p className="text-muted-foreground">Gerencie os CFOPs disponíveis para transporte.</p>
                 </div>
-                <Button onClick={() => setIsDialogOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Novo CFOP
-                </Button>
+                <div className="flex items-center gap-3 mt-2">
+                    <Button onClick={() => setIsDialogOpen(true)}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Novo CFOP
+                    </Button>
+                    <BackButton href="/settings" label="Voltar para Configurações" className="mb-0" />
+                </div>
             </div>
 
             <Card>

@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Printer } from 'lucide-react';
+import { Loader2, Printer, BarChart3, TrendingUp, DollarSign, CheckCircle2 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie, Cell } from 'recharts';
 import { DateRange } from 'react-day-picker';
 import { subDays, format, parseISO, parse } from 'date-fns';
@@ -24,6 +24,8 @@ type DeliveryChartData = {
     name: DeliveryStatus | 'Pendente';
     value: number;
 }
+
+const formatCurrency = (value: number) => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function ProductionChartPage() {
   const { user, loading: authLoading } = useAuth();
@@ -69,8 +71,30 @@ export default function ProductionChartPage() {
   }, [dateRange]);
 
 
-  const { barChartData, deliveryChartData } = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) return { barChartData: [], deliveryChartData: []};
+  const { 
+    barChartData, 
+    deliveryChartData, 
+    totalQuotesCount, 
+    closedQuotesCount, 
+    conversionRate, 
+    totalClosedValue, 
+    onTimeDeliveriesCount, 
+    totalDeliveriesCount, 
+    onTimeRate 
+  } = useMemo(() => {
+    if (!dateRange?.from || isNaN(dateRange.from.getTime()) || !dateRange?.to || isNaN(dateRange.to.getTime())) {
+        return { 
+            barChartData: [], 
+            deliveryChartData: [], 
+            totalQuotesCount: 0, 
+            closedQuotesCount: 0, 
+            conversionRate: 0, 
+            totalClosedValue: 0, 
+            onTimeDeliveriesCount: 0, 
+            totalDeliveriesCount: 0, 
+            onTimeRate: 0 
+        };
+    }
 
     const filteredQuotes = quotes.filter(quote => {
       const quoteDate = parseISO(quote.data);
@@ -95,7 +119,21 @@ export default function ProductionChartPage() {
 
     const finalBarChartData = Object.values(dataByDate).sort((a,b) => a.date.localeCompare(b.date));
     
-    const finalizedQuotes = filteredQuotes.filter(q => q.status === 'Finalizado');
+    const finalizedQuotes = filteredQuotes.filter(q => q.status === 'Finalizado').map(quote => {
+        let status: DeliveryStatus | 'Pendente' = quote.deliveryStatus || 'Pendente';
+        if (status === 'Pendente' && quote.deliveryForecast) {
+            const deliveryDateStr = quote.deliveredAt || quote.closedAt;
+            if (deliveryDateStr) {
+                const forecastDate = new Date(quote.deliveryForecast);
+                const deliveryDate = new Date(deliveryDateStr);
+                if (!isNaN(forecastDate.getTime()) && !isNaN(deliveryDate.getTime())) {
+                    status = deliveryDate <= forecastDate ? 'No Prazo' : 'Atrasado';
+                }
+            }
+        }
+        return { ...quote, deliveryStatus: status as DeliveryStatus };
+    });
+
     const deliveryCounts = finalizedQuotes.reduce((acc, quote) => {
         const status = quote.deliveryStatus || 'Pendente';
         acc[status] = (acc[status] || 0) + 1;
@@ -107,7 +145,33 @@ export default function ProductionChartPage() {
         value,
     }));
 
-    return { barChartData: finalBarChartData, deliveryChartData: finalDeliveryChartData };
+    // Calculate KPIs
+    const totalQuotesCount = filteredQuotes.length;
+    const closedQuotesCount = filteredQuotes.filter(q => q.status === 'Fechada' || q.status === 'Finalizado').length;
+    const conversionRate = totalQuotesCount > 0 ? (closedQuotesCount / totalQuotesCount) * 100 : 0;
+    
+    const totalClosedValue = filteredQuotes.reduce((acc, q) => {
+        if (q.status === 'Fechada' || q.status === 'Finalizado') {
+            return acc + (q.valorFinal || 0) + (q.icmsValor || 0);
+        }
+        return acc;
+    }, 0);
+
+    const onTimeDeliveriesCount = finalizedQuotes.filter(q => q.deliveryStatus === 'No Prazo').length;
+    const totalDeliveriesCount = finalizedQuotes.length;
+    const onTimeRate = totalDeliveriesCount > 0 ? (onTimeDeliveriesCount / totalDeliveriesCount) * 100 : 0;
+
+    return { 
+        barChartData: finalBarChartData, 
+        deliveryChartData: finalDeliveryChartData,
+        totalQuotesCount,
+        closedQuotesCount,
+        conversionRate,
+        totalClosedValue,
+        onTimeDeliveriesCount,
+        totalDeliveriesCount,
+        onTimeRate
+    };
 
   }, [quotes, dateRange]);
   
@@ -219,6 +283,49 @@ export default function ProductionChartPage() {
               </CardHeader>
           </Card>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total de Cotações</CardTitle>
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">{totalQuotesCount}</div>
+                      <p className="text-xs text-muted-foreground">Criadas no período</p>
+                  </CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Taxa de Conversão</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">{conversionRate.toFixed(1)}%</div>
+                      <p className="text-xs text-muted-foreground">{closedQuotesCount} de {totalQuotesCount} fechadas</p>
+                  </CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Faturamento Fechado</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold text-green-600">{formatCurrency(totalClosedValue)}</div>
+                      <p className="text-xs text-muted-foreground">Cotações ganhas/finalizadas</p>
+                  </CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Pontualidade de Entrega</CardTitle>
+                      <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold text-blue-600">{onTimeRate.toFixed(1)}%</div>
+                      <p className="text-xs text-muted-foreground">{onTimeDeliveriesCount} de {totalDeliveriesCount} no prazo</p>
+                  </CardContent>
+              </Card>
+          </div>
+
           <Card>
               <CardHeader>
                   <CardTitle>Desempenho de Cotações (Criação vs. Valor Fechado)</CardTitle>
@@ -231,13 +338,13 @@ export default function ProductionChartPage() {
                           <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" label={{ value: 'Cotações Realizadas', angle: -90, position: 'insideLeft', fill: '#3b82f6' }} />
                           <YAxis yAxisId="right" orientation="right" stroke="#16a34a" label={{ value: 'Valor Fechado (R$)', angle: -90, position: 'insideRight', fill: '#16a34a' }} />
                           <Tooltip
-                          formatter={(value, name) => {
-                              if (name === 'closedValue') {
-                                  return [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value as number), 'Valor Fechado'];
-                              }
-                              return [value, 'Cotações Realizadas'];
-                          }}
-                          />
+                           formatter={(value, name) => {
+                               if (name === 'closedValue' || name === 'Valor Fechado') {
+                                   return [formatCurrency(value as number), 'Valor Fechado'];
+                               }
+                               return [value, 'Cotações Realizadas'];
+                           }}
+                           />
                           <Legend />
                           <Bar yAxisId="left" dataKey="quotesCreated" fill="#3b82f6" name="Cotações Realizadas" />
                           <Bar yAxisId="right" dataKey="closedValue" fill="#16a34a" name="Valor Fechado" />

@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       chatId: new ObjectId(chatId),
       senderId: new ObjectId(senderId),
       senderUsername: user.username,
+      senderAvatarUrl: user.avatarUrl || undefined,
       text: text ? text.trim() : '',
       sharedItem: sharedItem || undefined,
       timestamp: new Date().toISOString(),
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     const createdMessage = { ...newMessage, id: result.insertedId.toHexString() };
 
 
-    const conversation = await db.collection<ChatConversation>('conversations').findOne({ _id: new ObjectId(chatId) });
+    const conversation = await db.collection<any>('conversations').findOne({ _id: new ObjectId(chatId) });
 
     if(conversation) {
         const readByUpdate: Record<string, boolean> = {};
@@ -47,6 +48,30 @@ export async function POST(request: Request) {
             readByUpdate[participantIdStr] = participantIdStr === senderId;
         });
         
+        let status = conversation.status || 'active';
+        let activeOperatorIds = conversation.activeOperatorIds || [];
+        
+        const isHubChat = conversation.isGroup === true;
+        const senderUserObj = await db.collection('users').findOne({ _id: new ObjectId(senderId) });
+        const isClient = senderUserObj && (senderUserObj.role === 'cliente' || senderUserObj.role === 'sub-cliente');
+
+        if (isHubChat && (status === 'finished' || !conversation.status) && isClient) {
+            status = 'pending';
+            activeOperatorIds = [];
+            
+            const welcomeText = `Novo atendimento iniciado no hub ${conversation.name}. Aguardando triagem dos atendentes.`;
+            const systemMessage = {
+                chatId: new ObjectId(chatId),
+                senderId: new ObjectId("000000000000000000000000"), // System sender ID
+                senderUsername: 'Sistema',
+                senderAvatarUrl: conversation.avatarUrl || undefined,
+                text: welcomeText,
+                timestamp: new Date().toISOString(),
+                isDeleted: false,
+            };
+            await db.collection('messages').insertOne(systemMessage);
+        }
+
         const lastMessagePayload = {
             text: newMessage.text,
             timestamp: newMessage.timestamp,
@@ -60,6 +85,8 @@ export async function POST(request: Request) {
               $set: {
                 lastMessage: lastMessagePayload,
                 readBy: readByUpdate,
+                status,
+                activeOperatorIds,
               }
             }
         );
@@ -89,12 +116,25 @@ export async function GET(request: Request) {
             chatId: new ObjectId(chatId)
         }).sort({ timestamp: 1 }).toArray();
 
-        const messagesWithId = messages.map(msg => ({
-            ...msg,
-            id: msg._id.toHexString(),
-            chatId: msg.chatId.toHexString(),
-            senderId: msg.senderId.toHexString(),
-        }));
+        // Dynamically fetch and merge latest avatars and usernames
+        const senderIds = [...new Set(messages.map(msg => msg.senderId))];
+        const users = await db.collection('users').find({
+            _id: { $in: senderIds }
+        }).toArray();
+        const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+        const messagesWithId = messages.map(msg => {
+            const senderIdStr = msg.senderId.toString();
+            const senderUser = userMap.get(senderIdStr);
+            return {
+                ...msg,
+                id: msg._id.toHexString(),
+                chatId: msg.chatId.toHexString(),
+                senderId: senderIdStr,
+                senderUsername: senderUser ? senderUser.username : msg.senderUsername,
+                senderAvatarUrl: senderUser ? senderUser.avatarUrl : msg.senderAvatarUrl,
+            };
+        });
         
         return NextResponse.json(messagesWithId);
     } catch (error: any) {

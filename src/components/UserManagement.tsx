@@ -79,6 +79,7 @@ const editUserFormSchema = z.object({
       canDefineFreightValue: z.boolean().default(false).optional(),
       canDefineManualCubage: z.boolean().default(false).optional(),
       canDefineVolumes: z.boolean().default(false).optional(),
+      canViewAnttSuggestion: z.boolean().default(false).optional(),
     }).optional(),
     operational: z.object({
       canCreateJourney: z.boolean().default(false).optional(),
@@ -580,6 +581,7 @@ export function UserManagement({ users, loginHistory, onDataMutated, isLoading }
                                 <FormField control={editUserForm.control} name="subPermissions.freight.canDefineFreightValue" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between text-sm"><FormLabel className="cursor-pointer font-normal">Definir Valor do Frete</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                                 <FormField control={editUserForm.control} name="subPermissions.freight.canDefineManualCubage" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between text-sm"><FormLabel className="cursor-pointer font-normal">Cubagem Manual</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                                 <FormField control={editUserForm.control} name="subPermissions.freight.canDefineVolumes" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between text-sm"><FormLabel className="cursor-pointer font-normal">Definir Volumes</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                                <FormField control={editUserForm.control} name="subPermissions.freight.canViewAnttSuggestion" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between text-sm"><FormLabel className="cursor-pointer font-normal">Ver Sugestão ANTT (ORS)</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                             </div>
                         )}
                     </div>

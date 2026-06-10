@@ -4,8 +4,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Save, ArrowLeft, Info } from 'lucide-react';
+import { Loader2, Save, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { MinimumFreightTable } from '@/components/pricing/MinimumFreightTable';
 import { MinimumFreightRegionTable } from '@/components/pricing/MinimumFreightRegionTable';
 import { WeightTiersConfig } from '@/components/pricing/WeightTiersConfig';
@@ -229,20 +230,18 @@ export default function FractionalMinimumPricingPage() {
   return (
       <main className="container mx-auto p-4 md:p-8">
         <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
-           <div>
-              <Button variant="outline" onClick={() => router.push('/settings/freight-pricing')} className="mb-4">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-              </Button>
-              <h1 className="text-3xl font-bold text-primary mb-2">Precificação Fracionado</h1>
+           <div className="space-y-2">
+              <h1 className="text-3xl font-bold text-primary">Precificação Fracionado</h1>
               <p className="text-muted-foreground max-w-2xl">
                 Defina o valor mínimo de frete para cada rota. Você pode configurar por macro-região ou detalhar por UF.
               </p>
            </div>
-           <div>
+           <div className="flex items-center gap-4 mt-2">
                 <Button onClick={handleSave} disabled={isSaving}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4"/>}
                     Salvar Alterações
                 </Button>
+                <BackButton href="/settings/freight-pricing" label="Voltar para Precificação" className="mb-0" />
            </div>
         </div>
 

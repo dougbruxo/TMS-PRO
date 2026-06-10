@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Printer, Download, ArrowLeft, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -40,7 +41,16 @@ export default function DocumentViewerPage() {
 
     const handlePrint = () => {
         if (iframeRef.current && iframeRef.current.contentWindow) {
+            const oldTitle = document.title;
+            const cleanNumero = String(doc?.numeroCte || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
+            const dacteNumFormatado = cleanNumero.padStart(2, '0');
+            document.title = `CTe-${dacteNumFormatado}`;
+
             iframeRef.current.contentWindow.print();
+
+            setTimeout(() => {
+                document.title = oldTitle;
+            }, 1000);
         } else {
             toast({ title: 'Aviso', description: 'Abrindo guia oficial para impressão.', variant: 'default' });
             window.open(doc.pdfUrl, '_blank');
@@ -55,11 +65,22 @@ export default function DocumentViewerPage() {
 
     return (
         <main className="container mx-auto p-4 md:p-8 space-y-6 animate-fade-in fade-in duration-300">
-            <div className="flex items-center justify-between mb-4">
-                <Button variant="ghost" onClick={() => router.back()}><ArrowLeft className="mr-2 w-4 h-4"/> Voltar</Button>
-                <div className="flex space-x-2">
+            <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+                <div />
+                <div className="flex items-center gap-3">
                     {doc.xmlUrl && <Button variant="outline" onClick={() => window.open(doc.xmlUrl, '_blank')}><Download className="mr-2 w-4 h-4"/> Baixar XML</Button>}
+                    {doc.pdfUrl && (
+                        <Button variant="outline" asChild>
+                            <a 
+                                href={doc.pdfUrl} 
+                                download={`CTe-${String(doc.numeroCte || '').replace(/\D/g, '').replace(/^0+/, '').padStart(2, '0') || 'Documento'}.pdf`}
+                            >
+                                <Download className="mr-2 w-4 h-4" /> Baixar PDF
+                            </a>
+                        </Button>
+                    )}
                     {doc.pdfUrl && <Button onClick={handlePrint} className="bg-primary shadow-lg"><Printer className="mr-2 w-4 h-4"/> Imprimir {doc.type}</Button>}
+                    <BackButton className="mb-0" />
                 </div>
             </div>
 
@@ -87,7 +108,12 @@ export default function DocumentViewerPage() {
                 
                 <TabsContent value="pdf" className="h-[820px] border-2 border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center animate-fade-in shadow-inner">
                     {doc.pdfUrl ? (
-                        <iframe ref={iframeRef} src={doc.pdfUrl} className="w-full h-full" title="Documento PDF" />
+                        <iframe 
+                            ref={iframeRef} 
+                            src={doc.pdfUrl} 
+                            className="w-full h-full" 
+                            title={`CTe-${String(doc.numeroCte || '').replace(/\D/g, '').replace(/^0+/, '').padStart(2, '0') || 'Documento'}`} 
+                        />
                     ) : (
                         <div className="text-muted-foreground flex flex-col items-center">
                             <AlertCircle className="w-16 h-16 mb-4 opacity-20"/>

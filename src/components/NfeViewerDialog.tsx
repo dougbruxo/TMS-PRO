@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Printer, Download, FileText, Loader2, Search, FileDown } from 'lucide-react';
+import { Printer, Download, FileText, Loader2, Search, FileDown, Trash2 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { authFetch } from '@/lib/api-client';
 
@@ -13,9 +13,10 @@ interface NfeViewerDialogProps {
   nfeChave?: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onRemove?: () => void;
 }
 
-export function NfeViewerDialog({ xmlContent, nfeChave, isOpen, onOpenChange }: NfeViewerDialogProps) {
+export function NfeViewerDialog({ xmlContent, nfeChave, isOpen, onOpenChange, onRemove }: NfeViewerDialogProps) {
   const [parsedData, setParsedData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -283,6 +284,11 @@ export function NfeViewerDialog({ xmlContent, nfeChave, isOpen, onOpenChange }: 
           <DialogTitle className="flex justify-between items-center pr-8">
             <span className="flex items-center gap-2"><FileText className="h-5 w-5"/> Leitor de NF-e (DANFE)</span>
             <div className="flex gap-2">
+                {onRemove && (xmlContent || nfeChave) && (
+                  <Button variant="destructive" size="sm" onClick={onRemove} title="Remover NF-e (XML/Chave)">
+                      <Trash2 className="h-4 w-4 mr-2" /> Remover
+                  </Button>
+                )}
                 {xmlContent && (
                   <>
                     <Button variant="outline" size="sm" onClick={handleDownloadXml} title="Baixar XML">

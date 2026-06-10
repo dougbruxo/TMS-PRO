@@ -16,7 +16,7 @@ import { initialPricingSettings } from '@/lib/data';
 import { authFetch } from '@/lib/api-client';
 
 export default function LabelSettingsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshPricingSettings, refreshNotificationCounts } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -55,6 +55,12 @@ export default function LabelSettingsPage() {
             body: JSON.stringify({ printing: { labels: settings } }),
         });
         if (!response.ok) throw new Error("Falha ao atualizar as configurações.");
+        if (refreshPricingSettings) {
+            await refreshPricingSettings();
+        }
+        if (refreshNotificationCounts) {
+            await refreshNotificationCounts();
+        }
         toast({ title: "Sucesso!", description: "Configurações de etiqueta salvas." });
     } catch (error: any) {
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível salvar as alterações." });

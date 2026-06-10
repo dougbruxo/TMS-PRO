@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   try {
     const { quoteIds, user, totalValue, tomador, tomadorId, billingDueDate, quoteUpdates } = await request.json();
     
-    if (!quoteIds || quoteIds.length === 0 || !user || !totalValue || !tomador || !billingDueDate) {
+    if (!user || !totalValue || !tomador || !billingDueDate) {
         return NextResponse.json({ message: 'Dados insuficientes para criar a fatura.' }, { status: 400 });
     }
 
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       invoiceCode,
       tomador,
       tomadorId,
-      quoteIds,
+      quoteIds: quoteIds || [],
       totalValue,
       status: 'Pendente',
       billingDueDate,
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
           userId: user.id,
           username: user.username,
           action: 'CRIADA',
-          details: `Fatura criada agrupando ${quoteIds.length} cotações.`
+          details: quoteIds && quoteIds.length > 0 ? `Fatura criada agrupando ${quoteIds.length} cotações.` : `Fatura manual criada.`
       }]
     };
     
@@ -76,41 +76,42 @@ export async function POST(request: Request) {
     const createdInvoice = { id: result.insertedId.toHexString(), ...newInvoice };
 
     // Update the child quotes to link them to this invoice and set their status
-    const childQuoteObjectIds = quoteIds.map((id: string) => new ObjectId(id));
-    
-    const quoteUpdateSet: any = { 
-      invoiceId: createdInvoice.id,
-      paymentStatus: 'Pendente', // Sync status
-      billingDueDate: billingDueDate, // Propagate billing date to quotes
-    };
+    if (quoteIds && quoteIds.length > 0) {
+      const childQuoteObjectIds = quoteIds.map((id: string) => new ObjectId(id));
+      
+      const quoteUpdateSet: any = { 
+        invoiceId: createdInvoice.id,
+        paymentStatus: 'Pendente', // Sync status
+        billingDueDate: billingDueDate, // Propagate billing date to quotes
+      };
 
-    if (quoteUpdates) {
-        if(quoteUpdates.status) quoteUpdateSet.status = quoteUpdates.status;
-        if(quoteUpdates.enderecoColeta) quoteUpdateSet.enderecoColeta = quoteUpdates.enderecoColeta;
-        if(quoteUpdates.enderecoEntrega) quoteUpdateSet.enderecoEntrega = quoteUpdates.enderecoEntrega;
-        if(quoteUpdates.grossProfit) quoteUpdateSet.grossProfit = quoteUpdates.grossProfit;
-    }
-
-
-    await db.collection('quotes').updateMany(
-      { _id: { $in: childQuoteObjectIds } },
-      { 
-          $set: quoteUpdateSet,
-          $push: { 
-              history: {
-                  $each: [{
-                      id: `hist-${Date.now()}-close`,
-                      timestamp: new Date().toISOString(),
-                      userId: user.id,
-                      username: user.username,
-                      action: 'COTACAO_FECHADA',
-                      details: `Cotação fechada e cobrança ${invoiceCode} gerada.`
-                  }],
-                  $position: 0
-              }
-          }
+      if (quoteUpdates) {
+          if(quoteUpdates.status) quoteUpdateSet.status = quoteUpdates.status;
+          if(quoteUpdates.enderecoColeta) quoteUpdateSet.enderecoColeta = quoteUpdates.enderecoColeta;
+          if(quoteUpdates.enderecoEntrega) quoteUpdateSet.enderecoEntrega = quoteUpdates.enderecoEntrega;
+          if(quoteUpdates.grossProfit) quoteUpdateSet.grossProfit = quoteUpdates.grossProfit;
       }
-    );
+
+      await db.collection('quotes').updateMany(
+        { _id: { $in: childQuoteObjectIds } },
+        { 
+            $set: quoteUpdateSet,
+            $push: { 
+                history: {
+                    $each: [{
+                        id: `hist-${Date.now()}-close`,
+                        timestamp: new Date().toISOString(),
+                        userId: user.id,
+                        username: user.username,
+                        action: 'COTACAO_FECHADA',
+                        details: `Cotação fechada e cobrança ${invoiceCode} gerada.`
+                    }],
+                    $position: 0
+                }
+            }
+        }
+      );
+    }
 
     return NextResponse.json(createdInvoice, { status: 201 });
   } catch (error: any) {

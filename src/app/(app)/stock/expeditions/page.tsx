@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, ArrowLeft, PackageCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
 import { ExpeditionManagement } from '@/components/ExpeditionManagement';
@@ -55,22 +56,12 @@ export default function AdministrativeExpeditionsPage() {
 
     return (
         <main className="container mx-auto p-4 md:p-8">
-            <div className="flex items-center gap-4 mb-8">
-                <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => router.push('/stock')} 
-                className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-                >
-                <ArrowLeft className="h-4 w-4" /> Voltar ao Estoque
-                </Button>
-                <div className="h-4 w-px bg-border hidden md:block" />
-                <div className="flex flex-col">
-                <h1 className="flex items-center gap-2 text-xl font-bold text-primary whitespace-nowrap">
-                     <PackageCheck className="h-6 w-6" /> Pedidos de Expedição
-                </h1>
-                <p className="text-xs text-muted-foreground hidden md:block">Realize a separação de carga para clientes (Fulfillment).</p>
+            <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-bold text-primary">Pedidos de Expedição</h1>
+                    <p className="text-muted-foreground text-sm">Realize a separação de carga para clientes (Fulfillment).</p>
                 </div>
+                <BackButton href="/stock" label="Voltar para Estoque" className="mb-0 mt-2" />
             </div>
 
             <ExpeditionManagement 

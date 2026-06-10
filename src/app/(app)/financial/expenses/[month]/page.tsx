@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { ExpenseManagement } from '@/components/ExpenseManagement';
 import { format, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -84,16 +85,18 @@ export default function MonthExpensesPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="flex justify-between items-center mb-8">
-        <Button variant="outline" onClick={() => router.push('/financial/expenses')}>
-          &larr; Voltar para o Painel de Despesas
-        </Button>
-         <Button variant="secondary" onClick={() => router.push('/settings/expense-categories')}>
-          Gerir Categorias
-        </Button>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-primary mb-2 capitalize">{monthName}</h1>
+          <p className="text-muted-foreground">Gerencie todas as despesas para o mês selecionado.</p>
+        </div>
+        <div className="flex items-center gap-3 mt-2 shrink-0">
+          <Button variant="secondary" onClick={() => router.push('/settings/expense-categories')}>
+            Gerir Categorias
+          </Button>
+          <BackButton href="/financial/expenses" label="Voltar para o Painel de Despesas" className="mb-0" />
+        </div>
       </div>
-      <h1 className="text-3xl font-bold text-primary mb-2 capitalize">{monthName}</h1>
-      <p className="text-muted-foreground mb-8">Gerencie todas as despesas para o mês selecionado.</p>
       
       <ExpenseManagement 
         monthKey={monthKey}

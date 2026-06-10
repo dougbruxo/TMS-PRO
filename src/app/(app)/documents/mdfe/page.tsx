@@ -9,7 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
 import { ALL_UFS } from '@/lib/ufs';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PageHeader } from '@/components/PageHeader';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -578,19 +580,26 @@ export default function MdfePage() {
   const isProducao = fiscal.sefazEnvironment === 'producao';
 
   return (
-    <main className="container mx-auto p-4 md:p-8 space-y-5 max-w-5xl">
+    <main className="container mx-auto p-4 md:p-8 space-y-5 max-w-5xl relative overflow-hidden animate-in fade-in duration-500">
+      <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10 animate-float-blur-1" />
+      <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10 animate-float-blur-2" />
+
       {/* Header */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/documents')}><ArrowLeft className="h-4 w-4 mr-1" />Voltar</Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-primary flex items-center gap-2"><Truck className="h-6 w-6" />Emissão de MDF-e</h1>
-          <p className="text-xs text-muted-foreground">Manifesto Eletrônico de Documentos Fiscais — Mod. 58 (Modal Rodoviário)</p>
-        </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${isProducao?'border-red-400 bg-red-500/10 text-red-600':'border-primary/40 bg-primary/10 text-primary'}`}>
-          {isProducao?<ShieldAlert className="h-3.5 w-3.5"/>:<ShieldCheck className="h-3.5 w-3.5"/>}
-          {isProducao?'PRODUÇÃO':'HOMOLOGAÇÃO'}
-        </div>
-      </div>
+      <PageHeader 
+        icon={<Truck className="h-5 w-5" />}
+        badge="MDF-e"
+        titlePrefix="Emissão de"
+        titleHighlight="MDF-e"
+        description="Manifesto Eletrônico de Documentos Fiscais — Mod. 58 (Modal Rodoviário)"
+        backHref="/documents"
+        backLabel="Documentos"
+        actions={
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${isProducao?'border-red-400 bg-red-500/10 text-red-600':'border-primary/40 bg-primary/10 text-primary'}`}>
+            {isProducao?<ShieldAlert className="h-3.5 w-3.5"/>:<ShieldCheck className="h-3.5 w-3.5"/>}
+            {isProducao?'PRODUÇÃO':'HOMOLOGAÇÃO'}
+          </div>
+        }
+      />
 
       {/* Info bar */}
       <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 text-xs">
@@ -602,7 +611,7 @@ export default function MdfePage() {
       </div>
 
       {/* SEFAZ rules */}
-      <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+      <Card className="border border-amber-500/30 bg-amber-500/5 backdrop-blur-md rounded-2xl shadow-lg relative overflow-hidden transition-all duration-300">
         <CardContent className="py-2.5 flex gap-2 items-start">
           <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <ul className="text-xs text-amber-800 dark:text-amber-200 list-disc pl-3 space-y-0.5">
@@ -618,7 +627,7 @@ export default function MdfePage() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
 
           {/* ── 1. CT-e por Município ── */}
-          <Card>
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2"><PackageCheck className="h-4 w-4 text-primary" />1. Selecionar CT-e por Município</CardTitle>
@@ -747,7 +756,7 @@ export default function MdfePage() {
           </Card>
 
           {/* ── 2. Trajeto ── */}
-          <Card>
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4 text-primary"/>2. Trajeto</CardTitle></CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-4">
               <FormField control={form.control} name="ufInicio" render={({field})=>(
@@ -795,7 +804,7 @@ export default function MdfePage() {
           </Card>
 
           {/* ── 3. Veículo e Condutor ── */}
-          <Card className="overflow-hidden border-primary/20 shadow-lg shadow-primary/5">
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             <CardHeader className="pb-3 bg-primary/5">
               <div className="flex items-center justify-between">
                 <div>
@@ -964,8 +973,8 @@ export default function MdfePage() {
 
           {/* ── 4. Contratante (Obrigatório / Automático) ── */}
           <Card className={cn(
-            "transition-all duration-300",
-            (!form.watch('contratanteCnpj') && !form.watch('contratanteCpf')) ? "border-amber-300 bg-amber-50/30" : "border-primary/20"
+            "border backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl",
+            (!form.watch('contratanteCnpj') && !form.watch('contratanteCpf')) ? "border-amber-500/30 bg-amber-500/5" : "border-border/40 bg-card/45"
           )}>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1023,7 +1032,7 @@ export default function MdfePage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4 text-primary"/>4. Totais e Informações Adicionais</CardTitle>
@@ -1096,7 +1105,7 @@ export default function MdfePage() {
 
           {/* Summary */}
           {allSelected.length>0 && (
-            <Card className="border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20">
+            <Card className="border border-emerald-500/30 bg-emerald-500/5 backdrop-blur-md rounded-2xl shadow-lg relative overflow-hidden transition-all duration-300">
               <CardContent className="py-3 flex items-center gap-3">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0"/>
                 <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">{allSelected.length} CT-e(s) selecionado(s) no MDF-e</p>
@@ -1113,6 +1122,50 @@ export default function MdfePage() {
           </div>
         </form>
       </Form>
+
+      <style>{`
+        @keyframes floatBlur1 {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+            background-color: hsl(var(--primary) / 0.15);
+          }
+          25% {
+            transform: translate(120px, 60px) scale(1.15);
+            background-color: rgba(99, 102, 241, 0.18);
+          }
+          50% {
+            transform: translate(40px, 160px) scale(0.95);
+            background-color: rgba(236, 72, 153, 0.14);
+          }
+          75% {
+            transform: translate(-80px, 100px) scale(1.08);
+            background-color: rgba(59, 130, 246, 0.18);
+          }
+        }
+
+        @keyframes floatBlur2 {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+            background-color: rgba(168, 85, 247, 0.15);
+          }
+          33% {
+            transform: translate(-100px, -120px) scale(1.1);
+            background-color: rgba(59, 130, 246, 0.16);
+          }
+          66% {
+            transform: translate(80px, -60px) scale(0.9);
+            background-color: rgba(236, 72, 153, 0.14);
+          }
+        }
+
+        .animate-float-blur-1 {
+          animation: floatBlur1 28s infinite ease-in-out alternate !important;
+        }
+
+        .animate-float-blur-2 {
+          animation: floatBlur2 38s infinite ease-in-out alternate !important;
+        }
+      `}</style>
     </main>
   );
 }

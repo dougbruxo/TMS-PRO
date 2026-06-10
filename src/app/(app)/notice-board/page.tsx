@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ClipboardList, AlertTriangle, Siren, Check } from 'lucide-react';
+import { Loader2, ClipboardList, AlertTriangle, Siren, Check, Megaphone } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import type { Notice, NoticeUrgency } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
@@ -96,10 +97,13 @@ export default function NoticeBoardPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-        <div className="space-y-2 mb-8">
-            <h1 className="text-3xl font-bold text-primary">Quadro de Avisos</h1>
-            <p className="text-muted-foreground">Visualize e gerencie os avisos da equipe.</p>
-        </div>
+        <PageHeader
+            icon={<Megaphone className="h-4 w-4" />}
+            badge="Comunicação Interna"
+            titlePrefix="Quadro de"
+            titleHighlight="Avisos"
+            description="Visualize e gerencie os avisos da equipe."
+        />
         
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {(Object.keys(statusDetails) as Array<keyof typeof statusDetails>).map(key => {

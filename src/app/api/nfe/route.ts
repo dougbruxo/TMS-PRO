@@ -4,14 +4,30 @@ import type { NfeData } from '@/lib/types';
 
 // Função para extrair dados do XML da NF-e
 function parseNfeXml(xml: string): NfeData {
+    // 1. Higieniza o XML contra caracteres especiais brutos (como '<' ou '&' soltos no texto)
+    const sanitizedXml = xml
+      .replace(/<(?!\/?([a-zA-Z_][a-zA-Z0-9_\-\:]*)|[?!])/g, '&lt;')
+      .replace(/&(?!(amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)/gi, '&amp;');
+
     const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: "@_",
+        removeNSPrefix: true, // Remove namespace prefixes so we don't worry about nfe: or ns2:
     });
     const jsonObj = parser.parse(xml);
     
-    // A estrutura pode ser NFe ou nfeProc
-    const nfeNode = jsonObj.nfeProc ? jsonObj.nfeProc.NFe.infNFe : jsonObj.NFe.infNFe;
+    // Encontra de forma robusta e recursiva o nó infNFe no objeto
+    const findKey = (obj: any, keyName: string): any => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj[keyName]) return obj[keyName];
+        for (const k of Object.keys(obj)) {
+            const res = findKey(obj[k], keyName);
+            if (res) return res;
+        }
+        return null;
+    }
+    
+    const nfeNode = findKey(jsonObj, 'infNFe');
 
     if (!nfeNode) {
         throw new Error("Estrutura do XML da NF-e inválida ou não reconhecida.");

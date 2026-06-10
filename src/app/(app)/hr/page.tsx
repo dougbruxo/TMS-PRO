@@ -3,11 +3,10 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowRight, Briefcase, Building2, HandCoins, CalendarClock, ReceiptText } from 'lucide-react';
+import { Loader2, Briefcase, Building2, HandCoins, CalendarClock, ReceiptText, Users } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
 
 export default function HRSettingsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -37,7 +36,7 @@ export default function HRSettingsPage() {
   const canViewTalents = isAdmin || subPerms.canViewTalents || subPerms.canEditTalents || subPerms.canDeleteTalents || subPerms.canManagePayroll;
   const canManagePayroll = isAdmin || subPerms.canManagePayroll;
   const canEditTalents = isAdmin || subPerms.canEditTalents;
-
+  
   const hrSettingsCards = [
     ...(canViewTalents ? [{
       title: 'Gerenciar Talentos',
@@ -73,25 +72,25 @@ export default function HRSettingsPage() {
 
   return (
       <main className="container mx-auto p-4 md:p-8">
-         <Button variant="outline" onClick={() => router.push('/dashboard')} className="mb-8">
-          &larr; Voltar para o Início
-        </Button>
-        <h1 className="text-3xl font-bold text-primary mb-2">Recursos Humanos</h1>
-        <p className="text-muted-foreground mb-8">Gerencie talentos, contratos, pagamentos e outras configurações de RH.</p>
+        <PageHeader
+          icon={<Users className="h-4 w-4" />}
+          badge="Gestão de Pessoas"
+          titlePrefix="Recursos"
+          titleHighlight="Humanos"
+          description="Gerencie talentos, contratos, pagamentos e outras configurações de RH."
+          backHref="/dashboard"
+          backLabel="Voltar ao Painel"
+        />
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {hrSettingsCards.map((card) => (
-                <Link key={card.title} href={card.link} className="flex">
-                    <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                            {card.icon}
-                            <CardTitle>{card.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                            <CardDescription>{card.description}</CardDescription>
-                        </CardContent>
-                    </Card>
-                </Link>
+                <PremiumNavigationCard
+                    key={card.title}
+                    title={card.title}
+                    description={card.description}
+                    href={card.link}
+                    icon={card.icon}
+                />
             ))}
         </div>
       </main>

@@ -144,6 +144,7 @@ export interface SubPermissions {
     canDefineFreightValue?: boolean;
     canDefineManualCubage?: boolean;
     canDefineVolumes?: boolean;
+    canViewAnttSuggestion?: boolean;
   };
   operational?: {
     canCreateJourney?: boolean;
@@ -417,6 +418,8 @@ export interface Driver {
   lastLocationUpdate?: string; // ISO string
   rating?: number;
   ratingCount?: number;
+  isThirdParty?: boolean;
+  isEmployee?: boolean;
 }
 
 export interface Vehicle {
@@ -608,14 +611,34 @@ export interface Quote {
   hasManualBaseFreight?: boolean;
   valorBaseManual?: number;
   hasManualFinalValue?: boolean;
-  tomadorId?: string;
+  extras?: QuoteExtra[];
+  extrasTotal?: number;
+  // Manual relation fields for the "Relacionados" column in billing
+  customerId?: string;
+  customerName?: string;
+  ownerId?: string;
+  ownerName?: string;
+  talentId?: string;
+  talentName?: string;
+}
+
+export interface QuoteExtra {
+  name: string;
+  enabled: boolean;
+  quantity: number;
+  unitValue: number;
+  total: number;
 }
 
 export interface Invoice {
     id: string;
     invoiceCode: string;
     tomador: string;
+    tomadorId?: string;
     quoteIds: string[];
+    // Single linked quote (for individual billing, not grouped)
+    quoteId?: string;
+    quoteCode?: string;
     totalValue: number;
     desconto?: number;
     status: PaymentStatus;
@@ -624,7 +647,15 @@ export interface Invoice {
     paidAmount?: number;
     paymentDate?: string | null; // ISO String
     billingHistory?: BillingHistoryEvent[];
-    tomadorId?: string;
+    // Relation fields for the "Relacionados" column
+    remetente?: string;
+    remetenteId?: string;
+    customerId?: string;
+    customerName?: string;
+    ownerId?: string;
+    ownerName?: string;
+    talentId?: string;
+    talentName?: string;
 }
 
 
@@ -692,6 +723,7 @@ export interface ChatMessage {
   chatId: ObjectId;
   senderId: ObjectId;
   senderUsername: string;
+  senderAvatarUrl?: string;
   text: string;
   sharedItem?: SharedItem;
   timestamp: string;
@@ -711,6 +743,8 @@ export interface ChatConversation {
   name?: string; // For group chats
   avatarUrl?: string; // For group chats
   isGroup?: boolean;
+  status?: 'pending' | 'active' | 'finished';
+  activeOperatorIds?: string[];
 }
 
 export interface HubUser {
@@ -745,7 +779,7 @@ export interface Notice {
   authorUsername: string;
 }
 
-export type ExpenseStatus = 'pendente' | 'pago' | 'finalizado' | 'parcial';
+export type ExpenseStatus = 'pendente' | 'pago' | 'finalizado' | 'parcial' | 'atrasado';
 
 export interface ExpenseHistoryEvent {
   timestamp: string;
@@ -792,6 +826,8 @@ export interface Expense {
   customerName?: string;
   ownerId?: string;
   ownerName?: string;
+  groupId?: string;
+  groupDescription?: string;
 }
 
 export interface ExpenseCategory {
@@ -985,6 +1021,7 @@ export interface StockLabel extends LabelData {
 }
 
 export interface CnpjAddressInfo {
+  id?: string;
   razaoSocial: string;
   nomeFantasia: string;
   endereco: string;

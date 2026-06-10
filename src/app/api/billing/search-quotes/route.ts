@@ -21,8 +21,8 @@ export async function GET(request: Request) {
         { tomador: regex },
         { quoteCode: regex },
       ],
-      // Apenas cotações que podem ser cobradas
-      status: { $in: ['Fechada', 'Finalizado'] }, 
+      // Apenas cotações que podem ser cobradas (todas as faturáveis, excluindo Aberta e Em Análise)
+      status: { $nin: ['Aberta', 'Em Análise'] }, 
       paymentStatus: 'Pendente',
       invoiceId: { $exists: false } // Exclui cotações que já estão em uma fatura
     };

@@ -312,34 +312,83 @@ export async function generateDactePdf(doc: CteDocumentoCompleto): Promise<Buffe
 // ============================================================
 
 /**
- * Gera um código de barras Code 128 como SVG data URL.
- * Usa uma implementação simplificada que gera barras SVG diretamente.
+ * Gera um código de barras Code 128 no subconjunto C (Code 128-C)
+ * específico para chaves de acesso numéricas de 44 dígitos, como SVG data URL.
  */
 function generateBarcodeDataUrl(chaveAcesso: string): string {
-  // Code 128B simplificado — gera SVG de barras pretas/brancas
-  // Para o DACTE, a chave de 44 dígitos é representada como barras
-  const barWidth = 1;
-  const height = 40;
-  let x = 0;
-  
-  // Gerar padrão visual baseado nos dígitos da chave
-  const bars: string[] = [];
   const digits = chaveAcesso.replace(/\D/g, '');
-  
-  for (let i = 0; i < digits.length; i++) {
-    const digit = parseInt(digits[i], 10);
-    // Alternar larguras de barras baseado no dígito
-    const blackWidth = barWidth + (digit % 3);
-    const whiteWidth = barWidth + ((digit + 1) % 2);
-    
-    bars.push(`<rect x="${x}" y="0" width="${blackWidth}" height="${height}" fill="black"/>`);
-    x += blackWidth + whiteWidth;
+  if (digits.length !== 44) {
+    // Fallback simples caso a chave não seja válida
+    return `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="10" y="20">Chave Inválida</text></svg>').toString('base64')}`;
   }
-  
+
+  // Tabela oficial do Code 128 (padrões de 0 a 106)
+  const patterns = [
+    "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312",
+    "132212", "221213", "221312", "231212", "112232", "122132", "122231", "113222",
+    "123122", "123221", "223211", "221132", "221231", "213212", "223112", "312131",
+    "311222", "321122", "321221", "312212", "322112", "322211", "212123", "212321",
+    "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+    "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121",
+    "313121", "211331", "231131", "213113", "213311", "213131", "311123", "311321",
+    "331121", "312113", "312311", "332111", "314111", "221411", "431111", "111224",
+    "111422", "121124", "121421", "141122", "141221", "112214", "112412", "122114",
+    "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+    "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112",
+    "421211", "212141", "214121", "412121", "111143", "111341", "131141", "114113",
+    "114311", "411113", "411311", "113141", "114131", "311141", "411131",
+    "211412", // 103: Start A
+    "211214", // 104: Start B
+    "211232", // 105: Start C
+    "2331112" // 106: Stop
+  ];
+
+  const codeList: number[] = [];
+
+  // 1. Inserir caractere de Start C (índice 105)
+  codeList.push(105);
+
+  // 2. Codificar os 44 dígitos em 22 pares
+  for (let i = 0; i < digits.length; i += 2) {
+    const pairValue = parseInt(digits.substring(i, i + 2), 10);
+    codeList.push(pairValue);
+  }
+
+  // 3. Calcular Checksum Modulo 103
+  let checksum = 105; // Valor do Start C
+  for (let i = 1; i < codeList.length; i++) {
+    checksum += codeList[i] * i;
+  }
+  checksum = checksum % 103;
+
+  // 4. Adicionar Checksum
+  codeList.push(checksum);
+
+  // 5. Adicionar Stop C (índice 106)
+  codeList.push(106);
+
+  // 6. Gerar caminhos de desenho do SVG
+  const height = 40;
+  const barWidth = 1.35; // Largura do módulo otimizada para encaixar no cabeçalho DACTE
+  let x = 0;
+  const bars: string[] = [];
+
+  for (let charIdx = 0; charIdx < codeList.length; charIdx++) {
+    const pattern = patterns[codeList[charIdx]];
+    for (let elemIdx = 0; elemIdx < pattern.length; elemIdx++) {
+      const width = parseInt(pattern[elemIdx], 10) * barWidth;
+      const isBar = elemIdx % 2 === 0;
+
+      if (isBar) {
+        bars.push(`<rect x="${x}" y="0" width="${width}" height="${height}" fill="black"/>`);
+      }
+      x += width;
+    }
+  }
+
   const svgWidth = x;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${height}" viewBox="0 0 ${svgWidth} ${height}">${bars.join('')}</svg>`;
   
-  // Converter para data URL
   const base64 = Buffer.from(svg).toString('base64');
   return `data:image/svg+xml;base64,${base64}`;
 }

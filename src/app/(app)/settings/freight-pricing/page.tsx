@@ -4,7 +4,8 @@
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Truck, Package, ArrowLeft } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
+import { Truck, Package } from 'lucide-react';
 import Link from 'next/link';
 
 export default function FreightPricingPage() {
@@ -28,14 +29,14 @@ export default function FreightPricingPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="mb-8">
-        <Button variant="outline" onClick={() => router.push('/settings')} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Configurações
-        </Button>
-        <h1 className="text-3xl font-bold text-primary mb-2">Precificação de Frete</h1>
-        <p className="text-muted-foreground">
-          Gerencie os valores mínimos de frete para as diferentes modalidades de transporte.
-        </p>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary">Precificação de Frete</h1>
+          <p className="text-muted-foreground">
+            Gerencie os valores mínimos de frete para as diferentes modalidades de transporte.
+          </p>
+        </div>
+        <BackButton href="/settings" label="Voltar para Configurações" className="mb-0 mt-2" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-8 max-w-4xl">

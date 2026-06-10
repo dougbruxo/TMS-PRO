@@ -7,9 +7,18 @@ import bcrypt from 'bcryptjs';
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeClients = searchParams.get('includeClients') === 'true' || searchParams.get('chat') === 'true';
+
     const { db } = await connectToDatabase();
-    // Apenas listamos usuários internos (admin, user, etc). Clientes e sub-clientes são geridos em Portais de Clientes.
-    const users = await db.collection('users').find({ role: { $nin: ['sub-cliente', 'cliente'] } }).project({ password: 0 }).toArray();
+
+    const query = includeClients 
+      ? {} 
+      : { role: { $nin: ['sub-cliente', 'cliente'] } };
+
+    // Apenas listamos usuários internos por padrão. Clientes e sub-clientes são incluídos se includeClients for true.
+    const users = await db.collection('users').find(query).project({ password: 0 }).toArray();
+
     
     // Mapeia o _id para id
     const usersWithId = users.map(user => {

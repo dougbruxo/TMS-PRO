@@ -8,24 +8,33 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const distance = parseFloat(searchParams.get('distance') || '0');
     const vehicleKey = searchParams.get('vehicleKey');
+    const axlesParam = searchParams.get('axles');
+    const axles = axlesParam ? parseInt(axlesParam, 10) : 0;
     const cargoType = searchParams.get('cargoType') || 'Geral';
     const isRoundTrip = searchParams.get('isRoundTrip') === 'true';
 
-    if (!distance || !vehicleKey) {
-      return NextResponse.json({ error: 'Distância e veículo são obrigatórios' }, { status: 400 });
+    if (!distance) {
+      return NextResponse.json({ error: 'Distância é obrigatória' }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
-    const vehicle = await db.collection('vehicles').findOne({ key: vehicleKey });
+    let vehicleAxles = axles;
 
-    if (!vehicle) {
-      return NextResponse.json({ error: 'Veículo não encontrado' }, { status: 404 });
+    if (!vehicleAxles && vehicleKey) {
+      const { db } = await connectToDatabase();
+      const vehicle = await db.collection('vehicles').findOne({ key: vehicleKey });
+      if (vehicle) {
+        vehicleAxles = vehicle.axles || 0;
+      }
+    }
+
+    if (!vehicleAxles || vehicleAxles < 2) {
+      return NextResponse.json({ error: 'Número de eixos (mínimo 2) é obrigatório para o cálculo.' }, { status: 400 });
     }
 
     // Se for ida e volta, a distância para o cálculo do piso é dobrada
     const calcDistance = isRoundTrip ? distance * 2 : distance;
 
-    const result = await calculateMinimumFreight(calcDistance, vehicle as any, cargoType);
+    const result = await calculateMinimumFreight(calcDistance, { axles: vehicleAxles } as any, cargoType);
 
     if (!result) {
       return NextResponse.json({ error: 'Não foi possível calcular o piso mínimo para este veículo/eixos.' }, { status: 400 });

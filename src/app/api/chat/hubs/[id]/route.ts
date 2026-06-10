@@ -12,6 +12,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const { db } = await connectToDatabase();
+    const oldHub = await db.collection('chat_hubs').findOne({ _id: new ObjectId(id) });
+    const oldName = oldHub?.name;
+
     const result = await db.collection('chat_hubs').updateOne(
       { _id: new ObjectId(id) },
       { $set: { name, linkedUserIds } }
@@ -19,6 +22,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     if (result.matchedCount === 0) {
       return NextResponse.json({ message: "Hub não encontrado." }, { status: 404 });
+    }
+
+    if (oldName && oldName !== name) {
+      await db.collection('conversations').updateMany(
+        { isGroup: true, name: oldName },
+        { $set: { name } }
+      );
     }
 
     return NextResponse.json({ message: "Hub atualizado com sucesso." });

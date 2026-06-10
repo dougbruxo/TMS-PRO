@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import Header from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, RefreshCw, LayoutTemplate, Layers } from 'lucide-react';
+import { Loader2, Check, RefreshCw, LayoutTemplate, Layers, Sparkles, CloudUpload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { hexToTailwindHsl, tailwindHslToHex } from '@/lib/colorUtils';
 import { Label } from '@/components/ui/label';
+import { authFetch } from '@/lib/api-client';
 
 type ThemeConfig = {
   name?: string;
@@ -60,10 +61,55 @@ export default function VisualStylePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  // Support legacy string values by migrating them
   const [storedTheme, setStoredTheme] = useLocalStorage<any>('app-theme', defaultSystemTheme.variables);
   const [activeTheme, setActiveTheme] = useState<Record<string, string>>(defaultSystemTheme.variables);
   const [layoutMode, setLayoutMode] = useLocalStorage<string>('app-layout-mode', 'classic');
+  const [isSaving, setIsSaving] = useState(false);
+  const colorDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper: persist to DB
+  const saveToDb = useCallback(async (data: { layoutMode?: string; themeVariables?: Record<string, string> | null }) => {
+    setIsSaving(true);
+    try {
+      await authFetch('/api/settings/visual-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (e: any) {
+      console.error('Erro ao salvar tema no banco:', e);
+      toast({ variant: 'destructive', title: 'Erro de Sincronização', description: 'Não foi possível salvar o tema no servidor.' });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [toast]);
+
+  // Load theme from DB on mount
+  useEffect(() => {
+    if (authLoading || !user) return;
+    (async () => {
+      try {
+        const res = await authFetch('/api/settings/visual-theme');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.layoutMode) {
+            setLayoutMode(data.layoutMode);
+            document.documentElement.setAttribute('data-layout-mode', data.layoutMode);
+          }
+          if (data.themeVariables && typeof data.themeVariables === 'object') {
+            setActiveTheme(data.themeVariables);
+            setStoredTheme(data.themeVariables);
+            for (const [key, value] of Object.entries(data.themeVariables)) {
+              document.documentElement.style.setProperty(key, value as string);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao carregar tema do banco:', e);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -82,34 +128,61 @@ export default function VisualStylePage() {
     }
   }, [storedTheme, setStoredTheme]);
   
-  const applyThemeVariables = (variables: Record<string, string>) => {
+  const applyThemeVariables = (variables: Record<string, string>, persistToDb = true) => {
+      let styleEl = document.getElementById('dynamic-theme');
+      if (!styleEl) {
+          styleEl = document.createElement('style');
+          styleEl.id = 'dynamic-theme';
+          document.head.appendChild(styleEl);
+      }
+      let rootCss = '';
+
       for (const [key, value] of Object.entries(variables)) {
-          document.documentElement.style.setProperty(key, value);
-          // Auto ring sync
-          if (key === '--primary' && !variables['--ring']) {
-             document.documentElement.style.setProperty('--ring', value);
+          if (key === '--primary' || key === '--ring') {
+              document.documentElement.style.setProperty(key, value);
+              if (key === '--primary' && !variables['--ring']) {
+                 document.documentElement.style.setProperty('--ring', value);
+              }
+          } else {
+              rootCss += `${key}: ${value};\n`;
+              document.documentElement.style.removeProperty(key);
           }
       }
+      
+      if (rootCss) {
+          styleEl.innerHTML = `:root:not(.dark) { ${rootCss} }`;
+      }
+
       setActiveTheme(variables);
       setStoredTheme(variables);
+      if (persistToDb) {
+        saveToDb({ themeVariables: variables });
+      }
   }
 
   const handleSelectPreset = (config: ThemeConfig) => {
     applyThemeVariables(config.variables);
-    toast({ title: 'Tema Aplicado!', description: `O tema "${config.name}" foi aplicado.` });
+    toast({ title: 'Tema Aplicado!', description: `O tema "${config.name}" foi aplicado para todos os usuários.` });
   };
 
   const handleSelectLayout = (mode: string) => {
     setLayoutMode(mode);
     document.documentElement.setAttribute('data-layout-mode', mode);
-    toast({ title: 'Estrutura Alterada!', description: `O modo visual inteiro do sistema transitou para a V2 ${mode === 'modern' ? 'Moderna' : 'Original'}.` });
+    saveToDb({ layoutMode: mode });
+    const modeLabels: Record<string, string> = { classic: 'Clássico', modern: 'Moderno Fluido', aurora: 'Aurora Neon' };
+    toast({ title: 'Estrutura Alterada!', description: `O motor visual transitou para ${modeLabels[mode] || mode} para todos os usuários.` });
   };
 
   const handleColorChange = (key: string, hexValue: string) => {
     const hslValue = hexToTailwindHsl(hexValue);
     const newConfig = { ...activeTheme, [key]: hslValue };
     if (key === '--primary') newConfig['--ring'] = hslValue;
-    applyThemeVariables(newConfig);
+    // Apply immediately to UI but debounce DB save (color picker fires many events)
+    applyThemeVariables(newConfig, false);
+    if (colorDebounceRef.current) clearTimeout(colorDebounceRef.current);
+    colorDebounceRef.current = setTimeout(() => {
+      saveToDb({ themeVariables: newConfig });
+    }, 800);
   };
 
   const handleResetToDefault = () => {
@@ -117,7 +190,10 @@ export default function VisualStylePage() {
     keysToReset.forEach(k => document.documentElement.style.removeProperty(k));
     setStoredTheme(defaultSystemTheme.variables);
     setActiveTheme(defaultSystemTheme.variables);
-    toast({ title: 'Restaurado', description: 'O tema voltou ao Padrão Original.' });
+    setLayoutMode('classic');
+    document.documentElement.setAttribute('data-layout-mode', 'classic');
+    saveToDb({ layoutMode: 'classic', themeVariables: defaultSystemTheme.variables });
+    toast({ title: 'Restaurado', description: 'O tema voltou ao Padrão Original para todos os usuários.' });
   };
 
   if (authLoading || !user || user.role !== 'admin') {
@@ -136,9 +212,16 @@ export default function VisualStylePage() {
           <Button variant="outline" onClick={() => router.push('/settings')}>
             &larr; Voltar para Configurações
           </Button>
-          <Button variant="secondary" onClick={handleResetToDefault} className="border bg-background">
-             <RefreshCw className="mr-2 h-4 w-4" /> Restaurar Original
-          </Button>
+          <div className="flex items-center gap-3">
+            {isSaving && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
+                <CloudUpload className="h-3.5 w-3.5" /> Sincronizando...
+              </span>
+            )}
+            <Button variant="secondary" onClick={handleResetToDefault} className="border bg-background">
+               <RefreshCw className="mr-2 h-4 w-4" /> Restaurar Original
+            </Button>
+          </div>
         </div>
         
         <div className="space-y-8 max-w-5xl mx-auto">
@@ -173,6 +256,20 @@ export default function VisualStylePage() {
                             <div>
                                 <p className="font-bold">Tema Moderno Fluido</p>
                                 <p className="text-xs font-normal opacity-70">App Premium V2 (Recomendado)</p>
+                            </div>
+                        </Button>
+                        <Button
+                            variant={layoutMode === 'aurora' ? 'default' : 'outline'}
+                            className={cn(
+                              "flex-1 h-auto py-6 flex flex-col items-center gap-2 relative overflow-hidden",
+                              layoutMode === 'aurora' && "bg-gradient-to-br from-primary via-purple-500 to-pink-500 border-0 text-white hover:opacity-90"
+                            )}
+                            onClick={() => handleSelectLayout('aurora')}
+                        >
+                            <Sparkles className="h-6 w-6" />
+                            <div>
+                                <p className="font-bold">Aurora Neon</p>
+                                <p className="text-xs font-normal opacity-70">Vibrante & Dinâmico (V3)</p>
                             </div>
                         </Button>
                     </div>

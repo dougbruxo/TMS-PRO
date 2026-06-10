@@ -24,6 +24,8 @@ import type { Quote, QuoteStatus } from '@/lib/types';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
 
 
 const sacStatuses: QuoteStatus[] = ['Coleta', 'No Galpão', 'Em Rota', 'Entregue', 'Finalizado'];
@@ -135,12 +137,13 @@ export default function SACPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-        <div className="space-y-2 mb-8">
-            <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-                <Headset className="h-8 w-8"/>
-                SAC - Atendimento ao Consumidor
-            </h1>
-            <p className="text-muted-foreground">Acompanhe as entregas, gerencie ocorrências e prioridades.</p>
+        <PageHeader
+            icon={<Headset className="h-4 w-4" />}
+            badge="Atendimento ao Consumidor"
+            titlePrefix="SAC -"
+            titleHighlight="Atendimento"
+            description="Acompanhe as entregas, gerencie ocorrências e prioridades."
+        >
             <GlobalSearch<Quote>
                 placeholder="Buscar por remetente, destino, nº cotação ou NF..."
                 availableStatusFilters={sacStatuses}
@@ -149,7 +152,7 @@ export default function SACPage() {
                 renderResult={renderQuoteResult}
                 onResultClick={handleQuoteResultClick}
             />
-        </div>
+        </PageHeader>
         
         {isLoading ? (
              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -161,30 +164,16 @@ export default function SACPage() {
                     const data = stats[status] || { quoteCount: 0, withOccurrences: 0 };
                     const details = statusDetails[status];
                     return (
-                        <Link key={status} href={details.href} className="flex">
-                            <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                                <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                    {details.icon}
-                                    <div className="flex-grow">
-                                        <CardTitle>{status}</CardTitle>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <Badge variant="secondary">
-                                                {data.quoteCount} Entregas
-                                            </Badge>
-                                            {data.withOccurrences > 0 && (
-                                                <Badge variant="destructive" className="animate-pulse">
-                                                    <AlertOctagon className="mr-1 h-3 w-3" />
-                                                    {data.withOccurrences} Ocorrência(s)
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <CardDescription>{details.description}</CardDescription>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                        <PremiumNavigationCard
+                            key={status}
+                            title={status}
+                            description={details.description}
+                            href={details.href}
+                            icon={details.icon}
+                            badgeCount={data.quoteCount}
+                            badgeText="Entregas"
+                            pulsingBadgeCount={data.withOccurrences}
+                        />
                     )
                 })}
             </div>

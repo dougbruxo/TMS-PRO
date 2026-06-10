@@ -30,8 +30,8 @@ export function ChatSidebar({ users, hubs, conversations, activeChatId, onSelect
 
   return (
     <>
-      <aside className="w-80 border-r border-border flex flex-col">
-        <div className="p-4 border-b border-border flex items-center justify-between">
+      <aside className="w-80 border-r border-border flex flex-col chat-page-sidebar">
+        <div className="p-4 border-b border-border flex items-center justify-between chat-sidebar-header">
           <h2 className="text-xl font-bold">Conversas</h2>
           <Button variant="ghost" size="icon" onClick={() => setIsNewChatOpen(true)}>
             <MessageSquarePlus className="h-5 w-5" />
@@ -41,10 +41,22 @@ export function ChatSidebar({ users, hubs, conversations, activeChatId, onSelect
           {conversations.map(convo => {
             let name, avatarUrl, initials;
             
+            const isOperator = currentUser.role === 'admin' || currentUser.role === 'user';
+            
             if (convo.isGroup) {
-              name = convo.name;
-              avatarUrl = convo.avatarUrl;
-              initials = getInitials(name);
+              const clientParticipant = isOperator 
+                ? convo.participants.map(id => users.find(u => u.id === String(id))).find(u => u && (u.role === 'cliente' || u.role === 'sub-cliente'))
+                : null;
+
+              if (isOperator && clientParticipant) {
+                name = `${convo.name} - ${clientParticipant.username}`;
+                avatarUrl = clientParticipant.avatarUrl || '';
+                initials = getInitials(clientParticipant.username);
+              } else {
+                name = convo.name;
+                avatarUrl = convo.avatarUrl;
+                initials = getInitials(name);
+              }
             } else {
               const otherParticipantId = convo.participants.find(id => String(id) !== currentUser.id);
               const otherUser = otherParticipantId ? users.find(u => u.id === String(otherParticipantId)) : null;
@@ -54,15 +66,17 @@ export function ChatSidebar({ users, hubs, conversations, activeChatId, onSelect
             }
 
             const isUnread = convo.readBy && !convo.readBy[currentUser.id];
+            const isPending = isOperator && convo.status === 'pending';
             
             return (
               <div
                 key={convo.id}
                 onClick={() => onSelectConversation(convo.id)}
                 className={cn(
-                  'flex items-center gap-3 p-4 cursor-pointer hover:bg-accent',
-                  activeChatId === convo.id ? 'bg-accent' : 'bg-transparent',
-                  isUnread && 'font-bold'
+                  'flex items-center gap-3 p-4 cursor-pointer hover:bg-accent chat-sidebar-convo-item border-l-2',
+                  activeChatId === convo.id ? 'bg-accent active' : 'bg-transparent',
+                  isUnread && 'font-bold',
+                  isPending ? 'border-l-amber-500 bg-amber-500/5' : 'border-l-transparent'
                 )}
               >
                 <div className="relative">
@@ -74,7 +88,14 @@ export function ChatSidebar({ users, hubs, conversations, activeChatId, onSelect
                 </div>
                 <div className="flex-grow overflow-hidden min-w-0">
                   <div className="flex justify-between items-center">
-                    <h3 className="truncate">{name}</h3>
+                    <h3 className="truncate flex items-center gap-2 font-semibold">
+                      <span className="truncate">{name}</span>
+                      {isPending && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse shrink-0">
+                          Pendente
+                        </span>
+                      )}
+                    </h3>
                     {convo.lastMessage && (
                        <p className="text-xs text-muted-foreground whitespace-nowrap">
                           {formatDistanceToNow(new Date(convo.lastMessage.timestamp), { addSuffix: true, locale: ptBR })}
@@ -84,8 +105,8 @@ export function ChatSidebar({ users, hubs, conversations, activeChatId, onSelect
                   <p className="text-sm text-muted-foreground truncate">
                     {convo.lastMessage ? (
                         convo.lastMessage.sharedItem 
-                          ? `[${convo.lastMessage.sharedItem.type}] ${convo.lastMessage.sharedItem.title}` 
-                          : convo.lastMessage.text
+                           ? `[${convo.lastMessage.sharedItem.type}] ${convo.lastMessage.sharedItem.title}` 
+                           : convo.lastMessage.text
                     ) : 'Nenhuma mensagem ainda'}
                   </p>
                 </div>

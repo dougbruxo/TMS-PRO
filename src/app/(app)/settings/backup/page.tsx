@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Trash2, ShieldAlert, History, Upload, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { BackButton } from '@/components/BackButton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -261,11 +262,13 @@ export default function BackupPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/settings')} className="mb-8">
-        &larr; Voltar para Configurações
-      </Button>
-      <h1 className="text-3xl font-bold text-primary mb-2">Backup e Restauração</h1>
-      <p className="text-muted-foreground mb-8">Exporte, restaure ou apague os dados do sistema.</p>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary">Backup e Restauração</h1>
+          <p className="text-muted-foreground">Exporte, restaure ou apague os dados do sistema.</p>
+        </div>
+        <BackButton href="/settings" label="Voltar para Configurações" className="mb-0 mt-2" />
+      </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
          <Card>

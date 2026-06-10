@@ -2,23 +2,11 @@
 "use client";
 
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, BookOpen, Wallet, Truck, Package } from 'lucide-react';
-import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
-import { Badge } from '@/components/ui/badge';
-import type { Manifest, Quote } from '@/lib/types';
+import type { Manifest } from '@/lib/types';
 import { authFetch } from '@/lib/api-client';
-
-
-const PulsingBadge = ({ count }: { count: number }) => {
-  if (count === 0) return null;
-  return (
-    <Badge className="absolute top-3 right-3 animate-pulse-badge bg-red-600 text-white h-6 w-6 justify-center p-0 text-xs">
-        {count}
-    </Badge>
-  );
-};
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
 
 
 export default function DriverPortalDashboardPage() {
@@ -113,18 +101,14 @@ export default function DriverPortalDashboardPage() {
       
       <div className="grid grid-cols-1 gap-6">
         {dashboardCards.map(card => (
-             <Link key={card.title} href={card.link} className="flex">
-                <Card className="relative flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                    <PulsingBadge count={card.count} />
-                    <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                      {card.icon}
-                      <CardTitle>{card.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow">
-                      <CardDescription>{card.description}</CardDescription>
-                    </CardContent>
-                </Card>
-            </Link>
+            <PremiumNavigationCard
+                key={card.title}
+                title={card.title}
+                description={card.description}
+                href={card.link}
+                icon={card.icon}
+                pulsingBadgeCount={card.count}
+            />
         ))}
       </div>
       

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, ArrowRight, Download, FileText, FileCheck2, XCircle, Clock, Printer, CheckCircle2, AlertCircle, MoreVertical, Ban, Send, Copy, Trash2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { BackButton } from '@/components/BackButton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -64,7 +65,16 @@ export default function DocumentsHistoryPage() {
 
   const handlePrint = () => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
+      const oldTitle = document.title;
+      const cleanNumero = String(selectedDoc?.numeroCte || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
+      const dacteNumFormatado = cleanNumero.padStart(2, '0');
+      document.title = `CTe-${dacteNumFormatado}`;
+
       iframeRef.current.contentWindow.print();
+
+      setTimeout(() => {
+        document.title = oldTitle;
+      }, 1000);
     } else if (selectedDoc?.pdfUrl) {
       toast({ title: 'Aviso', description: 'Abrindo guia oficial para impressão.', variant: 'default' });
       window.open(selectedDoc.pdfUrl, '_blank');
@@ -227,20 +237,12 @@ export default function DocumentsHistoryPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8 space-y-8">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/documents')}
-          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
-        <div className="h-4 w-px bg-border hidden md:block" />
+      <div className="flex justify-between items-start flex-wrap gap-4">
         <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-primary whitespace-nowrap">Histórico de Emissões</h1>
-          <p className="text-xs text-muted-foreground hidden md:block">Últimos documentos fiscais eletrônicos gerados pelo sistema.</p>
+          <h1 className="text-3xl font-extrabold text-primary whitespace-nowrap">Histórico de Emissões</h1>
+          <p className="text-sm text-muted-foreground">Últimos documentos fiscais eletrônicos gerados pelo sistema.</p>
         </div>
+        <BackButton href="/documents" className="mb-0 mt-1" />
       </div>
 
       <div className="rounded-md border bg-card">
@@ -300,13 +302,13 @@ export default function DocumentsHistoryPage() {
 
                         {['autorizado', 'concluido', 'sucesso'].some(s => doc.status?.toLowerCase().includes(s)) && (
                           <>
-                            {doc.type === 'CT-e' && (
+                            {(doc.type === 'CT-e' || doc.type === 'CTE') && (
                               <DropdownMenuItem className="text-blue-600 font-medium cursor-pointer" onClick={() => openCceDialog(doc)}>
                                 <FileText className="mr-2 h-4 w-4" />
                                 Carta de Correção (CC-e)
                               </DropdownMenuItem>
                             )}
-                            {doc.type === 'MDF-e' && (
+                            {(doc.type === 'MDF-e' || doc.type === 'MDFE') && (
                               <DropdownMenuItem className="text-emerald-600 font-medium cursor-pointer" onClick={() => openEncerramentoDialog(doc)}>
                                 <CheckCircle2 className="mr-2 h-4 w-4" />
                                 Encerrar MDF-e
@@ -352,8 +354,29 @@ export default function DocumentsHistoryPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {selectedDoc?.xmlUrl && <Button variant="outline" onClick={() => window.open(selectedDoc.xmlUrl, '_blank')}><Download className="mr-2 w-4 h-4" /> XML</Button>}
-              {selectedDoc?.pdfUrl && <Button onClick={handlePrint} className="bg-primary shadow-lg"><Printer className="mr-2 w-4 h-4" /> Imprimir Espelho</Button>}
+              {selectedDoc?.pdfUrl && (
+                <>
+                  <Button variant="outline" asChild>
+                    <a 
+                      href={selectedDoc.pdfUrl} 
+                      download={`CTe-${String(selectedDoc.numeroCte || '').replace(/\D/g, '').replace(/^0+/, '').padStart(2, '0') || 'Documento'}.pdf`}
+                    >
+                      <Download className="mr-2 w-4 h-4" /> Baixar PDF
+                    </a>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <a 
+                      href={`/api/documents/download?id=${selectedDoc._id}&type=${selectedDoc.type?.toLowerCase() || 'cte'}&format=xml`}
+                      download={`${selectedDoc.chaveAcesso || selectedDoc._id}-procCTe.xml`}
+                    >
+                      <Download className="mr-2 w-4 h-4" /> Baixar XML
+                    </a>
+                  </Button>
+                  <Button onClick={handlePrint} className="bg-primary shadow-lg" title="Imprimir Espelho">
+                    <Printer className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </DialogHeader>
 
@@ -366,7 +389,12 @@ export default function DocumentsHistoryPage() {
 
               <TabsContent value="pdf" className="h-[650px] border-2 border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center shadow-inner relative">
                 {selectedDoc?.pdfUrl && ['autorizado', 'concluido', 'sucesso'].some(s => selectedDoc.status?.toLowerCase().includes(s)) ? (
-                  <iframe ref={iframeRef} src={selectedDoc.pdfUrl} className="w-full h-full absolute inset-0 bg-transparent" title="Documento PDF" />
+                  <iframe 
+                    ref={iframeRef} 
+                    src={selectedDoc.pdfUrl} 
+                    className="w-full h-full absolute inset-0 bg-transparent" 
+                    title={`CTe-${String(selectedDoc.numeroCte || '').replace(/\D/g, '').replace(/^0+/, '').padStart(2, '0') || 'Documento'}`} 
+                  />
                 ) : (
                   <div className="text-muted-foreground flex flex-col items-center p-8 text-center">
                     <AlertCircle className="w-16 h-16 mb-4 opacity-50 text-destructive" />

@@ -46,6 +46,7 @@ export async function GET(request: Request) {
         fracionadoEnabled: u.fracionadoEnabled,
         armazenagemAccess: u.armazenagemAccess,
         quoteArmazenagemAccess: u.quoteArmazenagemAccess,
+        chatEnabled: !!u.chatEnabled,
         supportUserIds: u.supportUserIds || (u.supportUserId ? [u.supportUserId] : []),
         supportUserId: u.supportUserId || null,
 
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
       cnpj, razaoSocial, nomeFantasia, endereco, cidade, estado, cep,
       inscricaoEstadual, numero, complemento, bairro, telefone,
       // Permissões B2B
-      freightAccess, myFreightsAccess, noticeBoardAccess, myCompanyAccess, clientPartnersAccess, fracionadoEnabled, armazenagemAccess, quoteArmazenagemAccess,
+      freightAccess, myFreightsAccess, noticeBoardAccess, myCompanyAccess, clientPartnersAccess, fracionadoEnabled, armazenagemAccess, quoteArmazenagemAccess, chatEnabled,
       operatingHours, businessRules, supportUserIds, supportUserId 
     } = data;
 
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
       role: 'cliente',
       contact: contact || '',
       disabled: false,
-      chatEnabled: false,
+      chatEnabled: !!chatEnabled,
       
       // Módulos Internos Desativados por Segurança
       operationalAccess: false,

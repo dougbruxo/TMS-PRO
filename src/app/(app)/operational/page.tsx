@@ -6,9 +6,11 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+
 import {
   Loader2,
   Truck,
@@ -25,6 +27,7 @@ import type { Quote, QuoteStatus } from '@/lib/types';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
 
 const operationalStatuses: QuoteStatus[] = ['Coleta', 'No Galpão', 'Em Rota', 'Entregue', 'Finalizado'];
 
@@ -134,10 +137,18 @@ export default function OperationalPage() {
   }
 
   return (
-    <main className="container mx-auto p-4 md:p-8">
-        <div className="space-y-2 mb-8">
-            <h1 className="text-3xl font-bold text-primary">Área Operacional</h1>
-            <p className="text-muted-foreground">Selecione uma etapa para visualizar e gerenciar as cotações correspondentes.</p>
+    <main className="container mx-auto p-4 md:p-8 relative overflow-hidden">
+      {/* Efeitos de desfoque e brilho aurora neon atrás dos cards */}
+      <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10" />
+      <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10" />
+
+      <PageHeader
+            icon={<Truck className="h-4 w-4" />}
+            badge="Centro Operacional"
+            titlePrefix="Área"
+            titleHighlight="Operacional"
+            description="Selecione uma etapa para visualizar e gerenciar as cotações correspondentes."
+        >
             <GlobalSearch<Quote>
                 placeholder="Buscar por remetente, destino, nº cotação ou NF..."
                 availableStatusFilters={operationalStatuses}
@@ -146,7 +157,7 @@ export default function OperationalPage() {
                 renderResult={renderQuoteResult}
                 onResultClick={handleQuoteResultClick}
             />
-        </div>
+        </PageHeader>
         
         {isLoading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -155,44 +166,34 @@ export default function OperationalPage() {
             </div>
         ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Link href="/operational/manifests" className="flex">
-                    <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary cursor-pointer">
-                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                            <BookOpen className="h-8 w-8 text-primary" />
-                            <CardTitle>Gerenciar Romaneios</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                            <CardDescription>Crie novos romaneios e visualize os que já foram gerados.</CardDescription>
-                        </CardContent>
-                    </Card>
-                </Link>
+                <PremiumNavigationCard
+                    title="Gerenciar Romaneios"
+                    description="Crie novos romaneios e visualize os que já foram gerados."
+                    href="/operational/manifests"
+                    icon={<BookOpen className="h-8 w-8" />}
+                />
                 {operationalStatuses.map(status => {
                     const data = stats[status] || { quoteCount: 0, pendingPayments: 0 };
                     const details = statusDetails[status];
                     const shouldBlink = data.pendingPayments > 0;
                     return (
-                        <Link key={status} href={details.href} className="flex">
-                            <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                                <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                    {details.icon}
-                                    <div className="flex-grow">
-                                        <CardTitle>{status}</CardTitle>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <Badge variant="secondary">{data.quoteCount} Cotações</Badge>
-                                            {data.pendingPayments > 0 && (
-                                                <Badge variant="destructive" className={shouldBlink ? 'animate-pulse' : ''}>
-                                                    <CircleDollarSign className="mr-1 h-3 w-3" />
-                                                    {data.pendingPayments} Pendente(s)
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <CardDescription>{details.description}</CardDescription>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                        <PremiumNavigationCard
+                            key={status}
+                            title={status}
+                            description={details.description}
+                            href={details.href}
+                            icon={details.icon}
+                            badgeCount={data.quoteCount}
+                            badgeText="Cotações"
+                            extraBadges={
+                                data.pendingPayments > 0 ? (
+                                    <Badge variant="destructive" className={shouldBlink ? 'animate-pulse font-medium shadow-md shadow-destructive/10' : ''}>
+                                        <CircleDollarSign className="mr-1 h-3.5 w-3.5" />
+                                        {data.pendingPayments} Pendente(s)
+                                    </Badge>
+                                ) : undefined
+                            }
+                        />
                     )
                 })}
             </div>

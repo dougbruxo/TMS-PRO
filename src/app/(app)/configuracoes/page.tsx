@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2, Settings, Building2, Users } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
+
 
 export default function ConfigMinhaEmpresaPage() {
   const { user, loading } = useAuth();
@@ -71,38 +72,24 @@ export default function ConfigMinhaEmpresaPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Configurações da Minha Empresa</h1>
-        <p className="text-muted-foreground mt-2">
-          Gerencie as preferências globais do seu perfil corporativo, filiais e integrações do sistema.
-        </p>
-      </div>
+      <PageHeader
+        icon={<Settings className="h-4 w-4" />}
+        badge="Perfil Corporativo"
+        titlePrefix="Configurações da"
+        titleHighlight="Minha Empresa"
+        description="Gerencie as preferências globais do seu perfil corporativo, filiais e integrações do sistema."
+      />
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
         {configCards.map((card, index) => (
-          card.disabled ? (
-            <Card key={index} className="flex flex-col w-full opacity-60">
-                <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                    {card.icon}
-                    <CardTitle className="text-muted-foreground">{card.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                    <CardDescription>{card.description}</CardDescription>
-                </CardContent>
-            </Card>
-          ) : (
-            <Link key={index} href={card.link} className="flex">
-                <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                    <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                        {card.icon}
-                        <CardTitle>{card.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow">
-                        <CardDescription>{card.description}</CardDescription>
-                    </CardContent>
-                </Card>
-            </Link>
-          )
+          <PremiumNavigationCard
+            key={index}
+            title={card.title}
+            description={card.description}
+            href={card.link}
+            icon={card.icon}
+            disabled={card.disabled}
+          />
         ))}
       </div>
     </main>

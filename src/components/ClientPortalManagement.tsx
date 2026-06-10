@@ -65,6 +65,7 @@ const portalSchema = z.object({
   fracionadoEnabled: z.boolean().default(false),
   armazenagemAccess: z.boolean().default(false),
   quoteArmazenagemAccess: z.boolean().default(false),
+  chatEnabled: z.boolean().default(false),
   supportUserIds: z.array(z.string()).default([]),
 
   operatingHours: z.object({
@@ -115,6 +116,7 @@ type Portal = {
   fracionadoEnabled?: boolean;
   armazenagemAccess?: boolean;
   quoteArmazenagemAccess?: boolean;
+  chatEnabled: boolean;
   operatingHours?: any;
   businessRules?: any;
   supportUserIds?: string[];
@@ -210,7 +212,7 @@ export function ClientPortalManagement() {
       form.reset({
         email: '', password: '', confirmPassword: '', username: '', contact: '', cnpj: '', razaoSocial: '', nomeFantasia: '',
         endereco: '', cidade: '', estado: '', cep: '', inscricaoEstadual: '', numero: '', complemento: '', bairro: '', telefone: '',
-        freightAccess: true, myFreightsAccess: true, noticeBoardAccess: true, myCompanyAccess: true, clientPartnersAccess: true, fracionadoEnabled: false, armazenagemAccess: false, quoteArmazenagemAccess: false, supportUserIds: [],
+        freightAccess: true, myFreightsAccess: true, noticeBoardAccess: true, myCompanyAccess: true, clientPartnersAccess: true, fracionadoEnabled: false, armazenagemAccess: false, quoteArmazenagemAccess: false, chatEnabled: true, supportUserIds: [],
         businessRules: { discountPercentage: 0, extraFeePercentage: 0, extraDays: 0, reducedDays: 0 },
         operatingHours: {
           seg: { active: true, start: '08:00', end: '18:00' },
@@ -246,6 +248,7 @@ export function ClientPortalManagement() {
         fracionadoEnabled: portal.fracionadoEnabled || false,
         armazenagemAccess: portal.armazenagemAccess || false,
         quoteArmazenagemAccess: portal.quoteArmazenagemAccess || false,
+        chatEnabled: portal.chatEnabled || false,
         supportUserIds: portal.supportUserIds || (portal.supportUserId ? [portal.supportUserId] : []),
         businessRules: portal.businessRules || { discountPercentage: 0, extraFeePercentage: 0, extraDays: 0, reducedDays: 0 },
         operatingHours: portal.operatingHours || {
@@ -324,6 +327,7 @@ export function ClientPortalManagement() {
             fracionadoEnabled: cleanedValues.fracionadoEnabled,
             armazenagemAccess: cleanedValues.armazenagemAccess,
             quoteArmazenagemAccess: cleanedValues.quoteArmazenagemAccess,
+            chatEnabled: cleanedValues.chatEnabled,
             operatingHours: cleanedValues.operatingHours,
             businessRules: cleanedValues.businessRules,
             supportUserIds: cleanedValues.supportUserIds,
@@ -398,20 +402,14 @@ export function ClientPortalManagement() {
     <div className="w-full">
       <Card>
         <CardHeader>
-          <div className="flex-row items-center justify-between">
-            <div>
-              <CardTitle>Gestão de Portais B2B</CardTitle>
-              <CardDescription>Crie acessos para empresas clientes utilizarem os recursos de Cotação, Avisos e Rastreamento Externo (White-Label).</CardDescription>
-            </div>
-            <div className="flex items-center space-x-2 mt-4">
-                <div className="relative flex-grow">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input placeholder="Buscar por cliente, CNPJ ou E-mail mestre..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-                </div>
-                <Button onClick={() => handleOpenDialog(null)}>
-                    <Globe className="mr-2 h-4 w-4" /> Provisionar Novo Portal
-                </Button>
-            </div>
+          <div className="flex items-center space-x-2">
+              <div className="relative flex-grow">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input placeholder="Buscar por cliente, CNPJ ou E-mail mestre..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+              </div>
+              <Button onClick={() => handleOpenDialog(null)}>
+                  <Globe className="mr-2 h-4 w-4" /> Provisionar Novo Portal
+              </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -453,6 +451,10 @@ export function ClientPortalManagement() {
                              <Tooltip><TooltipTrigger>
                               <Badge variant={portal.noticeBoardAccess ? 'default' : 'secondary'} className="h-6 w-6 p-0 flex items-center justify-center">A</Badge>
                              </TooltipTrigger><TooltipContent>Avisos</TooltipContent></Tooltip>
+
+                             <Tooltip><TooltipTrigger>
+                              <Badge variant={portal.chatEnabled ? 'default' : 'secondary'} className="h-6 w-6 p-0 flex items-center justify-center">C</Badge>
+                             </TooltipTrigger><TooltipContent>Chat com Suporte</TooltipContent></Tooltip>
                           </div>
                         </TooltipProvider>
                       </TableCell>
@@ -685,6 +687,7 @@ export function ClientPortalManagement() {
                      <FormField control={form.control} name="noticeBoardAccess" render={({ field }) => (<FormItem className="flex items-center justify-between border p-3 rounded"><FormLabel className="font-medium">Acesso a Avisos</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                      <FormField control={form.control} name="armazenagemAccess" render={({ field }) => (<FormItem className="flex items-center justify-between border p-3 rounded"><FormLabel className="font-medium text-emerald-600 dark:text-emerald-400">Meu Estoque / Fulfillment</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                      <FormField control={form.control} name="quoteArmazenagemAccess" render={({ field }) => (<FormItem className="flex items-center justify-between border p-3 rounded"><FormLabel className="font-medium text-blue-600 dark:text-blue-400">Cotação de Armazenagem</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                     <FormField control={form.control} name="chatEnabled" render={({ field }) => (<FormItem className="flex items-center justify-between border p-3 rounded"><FormLabel className="font-medium text-purple-600 dark:text-purple-400">Chat Interno / Suporte</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                   </div>
               </div>
 

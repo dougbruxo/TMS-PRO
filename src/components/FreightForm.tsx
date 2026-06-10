@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cityList } from '@/lib/data';
-import { Loader2, Calculator, Box, PlusCircle, Trash2, Search, User, Upload, Copy, Info, ArrowLeft, ArrowRight, ArrowDown, Package, Weight, Map, Warehouse, Truck, Layers, Clock, Navigation } from 'lucide-react';
+import { Loader2, Calculator, Box, Plus, PlusCircle, Trash2, Search, User, Upload, Copy, Info, ArrowLeft, ArrowRight, ArrowDown, Package, Weight, Map, Warehouse, Truck, Layers, Clock, Navigation, Ruler } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { User as AuthUser, Quote, Vehicle, Company, FreightMode } from '@/lib/types';
@@ -23,14 +24,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { Label } from './ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from './ui/switch';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { XmlPreviewDialog } from '@/components/XmlPreviewDialog';
 import { NfeAttachmentDialog } from '@/components/NfeAttachmentDialog';
 import { parseNfeXml, ParsedNfeData } from '@/lib/xml-parser';
-import { findBestFitVehicle, parseCapacity } from '@/lib/vehicle-utils';
+import { findBestFitVehicle, parseCapacity, calculateFloorOccupancy, type FloorOccupancyResult } from '@/lib/vehicle-utils';
 
 // Base schema for freight modes
 const baseSchema = z.object({
@@ -39,7 +39,9 @@ const baseSchema = z.object({
     cidadeDestino: z.string().min(3, 'Cidade de destino é obrigatória.'),
     valorProduto: z.coerce.number().min(0, 'Valor do produto deve ser positivo.'),
     remetente: z.string().min(1, 'Nome do remetente é obrigatório.'),
+    remetenteId: z.string().optional(),
     destinatario: z.string().optional(),
+    destinatarioId: z.string().optional(),
     tomador: z.string().min(1, 'O tomador do frete (pagador) é obrigatório.'),
     tomadorId: z.string().optional(),
     responsavelSolicitante: z.string().optional(),
@@ -53,6 +55,7 @@ const baseSchema = z.object({
     isRuralDestino: z.boolean().optional(),
     nfNumber: z.string().optional(),
     nfeXml: z.string().optional(),
+    nfeChave: z.string().optional(),
     cargoType: z.string().optional().default('Geral'),
 });
 
@@ -112,6 +115,7 @@ type FreightFormProps = {
     readOnlyUsuario?: string;
     hideQuickSave?: boolean;
     onCloneQuote?: (quote: Quote) => void;
+    onExtrasClick?: () => void;
 };
 
 export interface FreightFormHandle {
@@ -128,12 +132,17 @@ interface CubageItem {
     quantity: number;
 }
 
-export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ onCalculate, isLoading, currentUser, users, vehicles, companies, mode, setMode, isRoundTrip, setIsRoundTrip, initialData, isEditing, canSwitchMode, readOnlyUsuario, hideQuickSave, onCloneQuote }, ref) => {
+export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ onCalculate, isLoading, currentUser, users, vehicles, companies, mode, setMode, isRoundTrip, setIsRoundTrip, initialData, isEditing, canSwitchMode, readOnlyUsuario, hideQuickSave, onCloneQuote, onExtrasClick }, ref) => {
     const { fetchAddressByCnpj, fetchAddressByCep, pricingSettings } = useAuth();
     const isAdmin = currentUser?.role === 'admin';
     const isCliente = currentUser?.role === 'cliente' || currentUser?.role === 'sub-cliente';
     const { toast } = useToast();
     const isArmazenagem = mode === 'armazenagem';
+    const [activeCalculateGlow, setActiveCalculateGlow] = useState(false);
+    const triggerCalculateClickAnimation = () => {
+        setActiveCalculateGlow(true);
+        setTimeout(() => setActiveCalculateGlow(false), 800);
+    };
 
     const [fullAddressOrigem, setFullAddressOrigem] = useState<string | undefined>(undefined);
     const [fullAddressDestino, setFullAddressDestino] = useState<string | undefined>(undefined);
@@ -207,10 +216,12 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
     const defaultValues = {
         usuario: currentUser.username,
         remetente: '',
+        remetenteId: '',
         cidadeOrigem: '',
         cidadeDestino: '',
         valorProduto: 0,
         destinatario: '',
+        destinatarioId: '',
         tomador: '',
         tomadorId: '',
         responsavelSolicitante: '',
@@ -225,6 +236,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
         quantidade: '' as any,
         isRuralDestino: false,
         cargoType: 'Geral',
+        nfeChave: '',
     };
 
     const form = useForm<z.infer<typeof formSchema>>({
@@ -254,7 +266,9 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
             if (data.cidadeOrigem) form.setValue('cidadeOrigem', data.cidadeOrigem, { shouldValidate: true });
             if (data.cidadeDestino) form.setValue('cidadeDestino', data.cidadeDestino, { shouldValidate: true });
             if (data.remetente) form.setValue('remetente', data.remetente, { shouldValidate: true });
+            if (data.remetenteId) form.setValue('remetenteId', data.remetenteId);
             if (data.destinatario) form.setValue('destinatario', data.destinatario, { shouldValidate: true });
+            if (data.destinatarioId) form.setValue('destinatarioId', data.destinatarioId);
             if (data.tomador) form.setValue('tomador', data.tomador, { shouldValidate: true });
             if (data.tomadorId) form.setValue('tomadorId', data.tomadorId);
 
@@ -283,6 +297,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
             
             if (data.nfNumber) form.setValue('nfNumber', data.nfNumber);
             if (data.nfeXml) form.setValue('nfeXml', data.nfeXml);
+            if (data.nfeChave) form.setValue('nfeChave', data.nfeChave);
         }
     }));
 
@@ -296,28 +311,108 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
         }
     };
 
-    const handleConfirmXmlImport = () => {
+    const handleConfirmXmlImport = async () => {
         if (!parsedXmlData) return;
         
-        setIsPreviewOpen(false);
         const parsed = parsedXmlData;
         const prefillData: Partial<Quote> = {};
 
+        // Auto-save/Lookup emitente and destinatario in parallel
+        let emitenteId = '';
+        let destinatarioId = '';
+
+        const getOrRegisterCustomer = async (party: any, typeLabel: string): Promise<string> => {
+            if (!party || !party.cnpjCpf) return '';
+            const cleanCnpj = party.cnpjCpf.replace(/[^\d]/g, '');
+            if (!cleanCnpj) return '';
+            
+            try {
+                // 1. Tries GET /api/cnpj/${cleanCnpj} to find the customer
+                const res = await fetch(`/api/cnpj/${cleanCnpj}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.id) {
+                        return data.id;
+                    }
+                }
+                
+                // 2. If not found (404/500), make a POST /api/customers call to register the customer
+                const isPJ = cleanCnpj.length > 11;
+                const customerPayload = {
+                    cnpj: cleanCnpj,
+                    razaoSocial: party.nome || `Cliente ${typeLabel}`,
+                    nomeFantasia: party.nome || `Cliente ${typeLabel}`,
+                    endereco: party.endereco || '',
+                    cidade: party.cidade || '',
+                    estado: party.estado || '',
+                    cep: party.cep || '',
+                    codigo_ibge: party.cMun || null,
+                    telefone: '',
+                    email: '',
+                    inscricaoEstadual: party.ie || (isPJ ? 'ISENTO' : ''),
+                    type: isPJ ? 'PJ' : 'PF'
+                };
+                
+                const registerRes = await fetch('/api/customers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(customerPayload)
+                });
+                
+                if (registerRes.ok) {
+                    const data = await registerRes.json();
+                    if (data && data.id) {
+                        return data.id;
+                    }
+                } else if (registerRes.status === 409) {
+                    // 3. If a 409 conflict occurs (duplicate), query GET /api/customers?term=${cleanCnpj}
+                    const searchRes = await fetch(`/api/customers?term=${cleanCnpj}`);
+                    if (searchRes.ok) {
+                        const list = await searchRes.json();
+                        if (list && list.length > 0 && list[0].id) {
+                            return list[0].id;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error(`Erro ao obter/registrar cliente (${typeLabel}):`, err);
+            }
+            return '';
+        };
+
+        try {
+            const [emitId, destId] = await Promise.all([
+                getOrRegisterCustomer(parsed.emitente, 'Emitente'),
+                getOrRegisterCustomer(parsed.destinatario, 'Destinatário')
+            ]);
+            emitenteId = emitId;
+            destinatarioId = destId;
+        } catch (err) {
+            console.error("Erro ao auto-salvar empresas do XML", err);
+        }
+
+        setIsPreviewOpen(false);
+
         if (parsed.emitente.nome) prefillData.remetente = parsed.emitente.nome;
+        if (emitenteId) prefillData.remetenteId = emitenteId;
         if (parsed.emitente.cidade && parsed.emitente.estado) prefillData.cidadeOrigem = `${parsed.emitente.cidade} - ${parsed.emitente.estado}`;
         if (parsed.emitente.endereco) prefillData.enderecoColeta = `${parsed.emitente.endereco}, ${parsed.emitente.cep}`;
 
         if (parsed.destinatario.nome) prefillData.destinatario = parsed.destinatario.nome;
+        if (destinatarioId) prefillData.destinatarioId = destinatarioId;
         if (parsed.destinatario.cidade && parsed.destinatario.estado) prefillData.cidadeDestino = `${parsed.destinatario.cidade} - ${parsed.destinatario.estado}`;
         if (parsed.destinatario.endereco) prefillData.enderecoEntrega = `${parsed.destinatario.endereco}, ${parsed.destinatario.cep}`;
         
         if (parsed.vNF) prefillData.valorProduto = parsed.vNF; // vNF or vProd mapping
         if (parsed.pesoB) prefillData.peso = parsed.pesoB;
         if (parsed.qVol) prefillData.quantidade = parsed.qVol;
+        
         if (parsed.emitente.nome) prefillData.tomador = parsed.emitente.nome;
+        if (emitenteId) prefillData.tomadorId = emitenteId;
 
         prefillData.nfNumber = parsed.nNF;
         prefillData.nfeXml = (parsed as any)._rawXml;
+        if (parsed.chNFe) prefillData.nfeChave = parsed.chNFe;
 
         if (ref && typeof ref === 'function') {
             // Unlikely since we use it as ObjectRef
@@ -325,7 +420,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
             (ref as any).current.prefill(prefillData);
         }
         
-        toast({ title: "XML Processado", description: "O formulário foi preenchido com sucesso!" });
+        toast({ title: "XML Processado", description: "O formulário foi preenchido e as empresas foram salvas com sucesso!" });
         setParsedXmlData(null);
     };
 
@@ -362,9 +457,11 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
 
                 if (field === 'cidadeOrigem') {
                     if (addressInfo.razaoSocial) form.setValue('remetente', addressInfo.razaoSocial);
+                    if (addressInfo.id) form.setValue('remetenteId', addressInfo.id);
                     setFullAddressOrigem(addressInfo.endereco);
                 } else {
                     if (addressInfo.razaoSocial) form.setValue('destinatario', addressInfo.razaoSocial);
+                    if (addressInfo.id) form.setValue('destinatarioId', addressInfo.id);
                     setFullAddressDestino(addressInfo.endereco);
                 }
                 toast({ title: 'Endereço encontrado!', description: 'Dados carregados com sucesso.' });
@@ -426,7 +523,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                 if (mode === 'fracionado') {
                     const weight = Number(form.getValues('peso')) || 0;
                     const cubage = Number(form.getValues('cubagem')) || 0;
-                    const bestFit = findBestFitVehicle(weight, cubage, vehicles, cubageItems);
+                    const bestFit = findBestFitVehicle(weight, cubage, vehicles, cubageItems, stackItems);
                     if (bestFit) {
                         vehicleKey = bestFit.key;
                         suggestedVehicleName = bestFit.displayName;
@@ -490,10 +587,12 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
         if (searchFieldTarget === 'origem') {
             form.setValue('cidadeOrigem', city, { shouldValidate: true });
             form.setValue('remetente', customer.razaoSocial, { shouldValidate: true });
+            form.setValue('remetenteId', customer.id, { shouldValidate: true });
             setFullAddressOrigem(customer.endereco);
         } else if (searchFieldTarget === 'destino') {
             form.setValue('cidadeDestino', city, { shouldValidate: true });
             form.setValue('destinatario', customer.razaoSocial, { shouldValidate: true });
+            form.setValue('destinatarioId', customer.id, { shouldValidate: true });
             setFullAddressDestino(customer.endereco);
         } else if (searchFieldTarget === 'tomador') {
             form.setValue('tomador', customer.razaoSocial, { shouldValidate: true });
@@ -679,9 +778,14 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
     const [newItem, setNewItem] = useState({ length: 0, width: 0, height: 0, quantity: 1 });
     const [totalCubage, setTotalCubage] = useState<number | null>(null);
     const [totalCubedWeight, setTotalCubedWeight] = useState<number | null>(null);
-    const [suggestedVehicle, setSuggestedVehicle] = useState<{ key: string, name: string } | null>(null);
+    const [suggestedVehicle, setSuggestedVehicle] = useState<{ key: string, name: string, cubagem?: string, peso?: string, comprimento?: number, largura?: number } | null>(null);
+    const [stackItems, setStackItems] = useState(true);
+    const [floorOccupancy, setFloorOccupancy] = useState<FloorOccupancyResult | null>(null);
 
-    const updateTotals = (items: CubageItem[]) => {
+    const FRACIONADO_TRUCK_WIDTH = 2.40; // Largura padrão referência para fracionado
+
+    const updateTotals = (items: CubageItem[], forceStackMode?: boolean) => {
+        const shouldStack = forceStackMode !== undefined ? forceStackMode : stackItems;
         const total = items.reduce((acc, item) => {
             return acc + (item.length * item.width * item.height * item.quantity);
         }, 0);
@@ -694,10 +798,20 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
         form.setValue('cubagem', parseFloat(total.toFixed(3)) || 0);
         form.setValue('quantidade', totalQuantity || 0);
 
-        if (mode === 'dedicado' && total > 0) {
-            suggestVehicle(total);
-        } else if (total === 0) {
+        // Calcular ocupação do piso quando "Empilhar?" está desmarcado
+        if (!shouldStack && items.length > 0) {
+            const refWidth = mode === 'fracionado' ? FRACIONADO_TRUCK_WIDTH : 2.60; // Largura referência
+            const occupancy = calculateFloorOccupancy(items, refWidth, vehicles);
+            setFloorOccupancy(occupancy);
+        } else {
+            setFloorOccupancy(null);
+        }
+
+        if (total > 0) {
+            suggestVehicle(total, items, shouldStack);
+        } else {
             setSuggestedVehicle(null);
+            setFloorOccupancy(null);
         }
     };
 
@@ -737,24 +851,41 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
         }
     };
 
-    const suggestVehicle = (totalCubageValue: number) => {
+    const suggestVehicle = (totalCubageValue: number, items: CubageItem[], shouldStack?: boolean) => {
         const weight = Number(form.getValues('peso')) || 0;
+        const useStack = shouldStack !== undefined ? shouldStack : stackItems;
         
-        // Usa a nova lógica Best-Fit que considera Peso, Cubagem e agora Dimensões Físicas
-        const suitableVehicle = findBestFitVehicle(weight, totalCubageValue, vehicles, cubageItems);
-        
-        if (suitableVehicle) {
-            setSuggestedVehicle({ key: suitableVehicle.key, name: suitableVehicle.displayName });
+        // Calcular ocupação do piso para informar no fracionado
+        if (!useStack && items.length > 0) {
+            const refWidth = mode === 'fracionado' ? FRACIONADO_TRUCK_WIDTH : 2.60;
+            const occupancy = calculateFloorOccupancy(items, refWidth, vehicles);
+            setFloorOccupancy(occupancy);
+        }
+
+        if (mode === 'dedicado') {
+            const suitableVehicle = findBestFitVehicle(weight, totalCubageValue, vehicles, items, useStack);
+            
+            if (suitableVehicle) {
+                setSuggestedVehicle({
+                    key: suitableVehicle.key,
+                    name: suitableVehicle.displayName,
+                    cubagem: suitableVehicle.cubagem,
+                    peso: suitableVehicle.peso,
+                    comprimento: suitableVehicle.comprimento,
+                    largura: suitableVehicle.largura,
+                });
+            } else {
+                setSuggestedVehicle(null);
+                if (totalCubageValue > 0 || weight > 0) {
+                    toast({ 
+                        title: "Aviso de Compatibilidade", 
+                        description: "Nenhum veículo disponível suporta o peso, cubagem ou dimensões informadas.",
+                        variant: "destructive"
+                    });
+                }
+            }
         } else {
             setSuggestedVehicle(null);
-            // Só avisa se houver carga real
-            if (totalCubageValue > 0 || weight > 0) {
-                toast({ 
-                    title: "Aviso de Compatibilidade", 
-                    description: "Nenhum veículo disponível suporta o peso, cubagem ou dimensões informadas.",
-                    variant: "destructive"
-                });
-            }
         }
     };
 
@@ -820,6 +951,13 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
             }
         }
 
+        // Auto-preencher observações com cubagem detalhada se o campo estiver vazio
+        if (cubageItems.length > 0 && !data.obs?.trim()) {
+            const cubageText = cubageItems.map(item => `${item.quantity}x [${item.height}m x ${item.width}m x ${item.length}m]`).join(', ');
+            data.obs = `Cubagem: ${cubageText}`;
+            form.setValue('obs', data.obs, { shouldValidate: true });
+        }
+
         onCalculate({
             ...data,
             enderecoColeta: fullAddressOrigem,
@@ -881,7 +1019,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
             <DialogTrigger asChild>
                 <Button type="button" variant="outline" size="icon" className="shrink-0"><Box className="h-5 w-5" /></Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Calculadora de Cubagem</DialogTitle>
                     <DialogDescription>
@@ -899,6 +1037,26 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                         </div>
                         <Button type="button" onClick={handleAddItem} className="mt-4 w-full"><PlusCircle className="mr-2 h-4 w-4" /> Adicionar</Button>
 
+                        <div className="flex items-center gap-2 mt-4 p-3 bg-muted/50 rounded-lg border">
+                            <Checkbox
+                                id="stackItems"
+                                checked={stackItems}
+                                onCheckedChange={(checked) => {
+                                    const newVal = !!checked;
+                                    setStackItems(newVal);
+                                    if (cubageItems.length > 0 && totalCubage !== null) {
+                                        updateTotals(cubageItems, newVal);
+                                    }
+                                }}
+                            />
+                            <label htmlFor="stackItems" className="text-sm font-medium cursor-pointer select-none">
+                                Empilhar?
+                            </label>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                                {stackItems ? 'Itens podem ser empilhados' : 'Itens lado a lado no piso'}
+                            </span>
+                        </div>
+
                         <div className="mt-6">
                             <Button type="button" onClick={calculateTotalCubage} className="w-full" disabled={cubageItems.length === 0}>Calcular Cubagem</Button>
                             {(totalCubage !== null && totalCubedWeight !== null) && (
@@ -913,10 +1071,78 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                             <p className="text-2xl font-bold">{totalCubedWeight.toFixed(2)} kg</p>
                                         </div>
                                     </div>
+
+                                    {/* Informação de ocupação da carroceria (modo não empilhar) */}
+                                    {!stackItems && floorOccupancy && (
+                                        <div className="pt-3 border-t border-amber-500/30">
+                                            <p className="text-sm font-semibold mb-2 flex items-center gap-1.5 justify-center">
+                                                <Ruler className="h-4 w-4 text-amber-600" />
+                                                <span className="text-amber-700 dark:text-amber-400">Ocupação da Carroceria (sem empilhar)</span>
+                                            </p>
+                                            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-left">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-sm text-muted-foreground">Comprimento ocupado:</span>
+                                                    <span className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                                                        {floorOccupancy.totalLengthUsed.toFixed(2)}m
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-sm text-muted-foreground">Fileiras formadas:</span>
+                                                    <span className="text-sm font-semibold">{floorOccupancy.rows.length}</span>
+                                                </div>
+                                                {floorOccupancy.rows.map((row, idx) => (
+                                                    <div key={idx} className="text-xs text-muted-foreground border-t border-amber-200/50 dark:border-amber-800/50 pt-1 mt-1">
+                                                        <span className="font-medium">Fileira {idx + 1}:</span> {row.items.length} peça(s) — Larg. {row.widthUsed.toFixed(2)}m × Comp. {row.lengthUsed.toFixed(2)}m
+                                                    </div>
+                                                ))}
+                                                {mode === 'fracionado' && (
+                                                    <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-400">
+                                                        <strong>Fracionado (ref. largura {FRACIONADO_TRUCK_WIDTH}m):</strong> Os itens ocupariam <strong>{floorOccupancy.totalLengthUsed.toFixed(2)} metros</strong> de carroceria.
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {floorOccupancy.exceedsLargest && floorOccupancy.largestVehicle && (
+                                                <div className="mt-2 p-2 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-400 font-medium">
+                                                    ⚠️ A carga ({floorOccupancy.totalLengthUsed.toFixed(2)}m) excede a maior carroceria cadastrada: {floorOccupancy.largestVehicle.name} ({floorOccupancy.largestVehicle.comprimento}m × {floorOccupancy.largestVehicle.largura}m)
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {mode === 'dedicado' && suggestedVehicle && (
-                                        <div className="pt-2">
-                                            <p className="text-sm">Veículo sugerido: <span className="font-semibold text-primary">{suggestedVehicle.name}</span></p>
-                                            <Button size="sm" className="mt-2" onClick={handleUseSuggestedVehicle}>Usar este veículo</Button>
+                                        <div className="pt-3 border-t border-primary/20">
+                                            <p className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                                                <Truck className="h-4 w-4 text-primary" />
+                                                Veículo Sugerido: <span className="text-primary">{suggestedVehicle.name}</span>
+                                                {!stackItems && <span className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">sem empilhar</span>}
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-3">
+                                                {suggestedVehicle.cubagem && (
+                                                    <div className="flex items-center gap-1">
+                                                        <Package className="h-3 w-3" />
+                                                        <span>Cubagem: <strong>{suggestedVehicle.cubagem}</strong></span>
+                                                    </div>
+                                                )}
+                                                {suggestedVehicle.peso && (
+                                                    <div className="flex items-center gap-1">
+                                                        <Weight className="h-3 w-3" />
+                                                        <span>Peso: <strong>{suggestedVehicle.peso}</strong></span>
+                                                    </div>
+                                                )}
+                                                {suggestedVehicle.comprimento ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <Ruler className="h-3 w-3" />
+                                                        <span>Comp.: <strong>{suggestedVehicle.comprimento}m</strong></span>
+                                                    </div>
+                                                ) : null}
+                                                {suggestedVehicle.largura ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <Ruler className="h-3 w-3" />
+                                                        <span>Larg.: <strong>{suggestedVehicle.largura}m</strong></span>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                            <Button size="sm" className="w-full" onClick={handleUseSuggestedVehicle}>Usar este veículo</Button>
                                         </div>
                                     )}
                                     {mode === 'fracionado' && (
@@ -1033,14 +1259,14 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
 
     // ── Card style per mode
     const cardStyle = isArmazenagem
-        ? 'border-indigo-500/30 bg-indigo-500/5'
+        ? 'quote-card-armazenagem'
         : mode === 'dedicado'
-        ? 'border-blue-500/30 bg-blue-500/5'
-        : 'border-emerald-500/30 bg-emerald-500/5';
+        ? 'quote-card-dedicado'
+        : 'quote-card-fracionado';
 
     return (
         <>
-            <Card className={cn("shadow-lg", cardStyle)}>
+            <Card className={cn("shadow-lg freight-form-custom-theme", cardStyle)}>
                 <CardHeader>
                     <div className="flex justify-between items-center flex-wrap gap-3">
                         <div className="flex items-center gap-2">
@@ -1439,22 +1665,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                         )} />
                                     )}
 
-                                    <FormField control={form.control} name="veiculo" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Tipo de veículo</FormLabel>
-                                            <div className="flex gap-2">
-                                                <Select onValueChange={field.onChange} value={field.value} disabled={mode === 'fracionado'}>
-                                                    <FormControl>
-                                                        <SelectTrigger><SelectValue placeholder="-- Selecione --" /></SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {activeVehicles.map((vehicle) => <SelectItem key={vehicle.key} value={vehicle.key}>{vehicle.displayName}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
+
 
                                     <FormField control={form.control} name="cargoType" render={({ field }) => (
                                         <FormItem>
@@ -1491,31 +1702,7 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                         </FormItem>
                                     )} />
 
-                                    <FormField control={form.control} name="cubagem" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Cubagem (m³)</FormLabel>
-                                            <div className="flex gap-2">
-                                                <div className="relative flex-grow">
-                                                    <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                                    <FormControl><Input type="number" step="0.001" placeholder="Ex: 1.25" {...field} className={cn("pl-10", !currentUser?.subPermissions?.freight?.canDefineManualCubage && "bg-muted")} readOnly={!currentUser?.subPermissions?.freight?.canDefineManualCubage} tabIndex={currentUser?.subPermissions?.freight?.canDefineManualCubage ? undefined : -1} /></FormControl>
-                                                </div>
-                                                {CubageCalculatorDialog}
-                                            </div>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <FormField control={form.control} name="quantidade" render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Volumes</FormLabel>
-                                                <div className="relative">
-                                                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                                    <FormControl><Input type="number" placeholder="Qtd" {...field} className={cn("pl-10", (isCliente || (!isAdmin && !currentUser?.subPermissions?.freight?.canDefineVolumes)) && "bg-muted")} readOnly={isCliente || (!isAdmin && !currentUser?.subPermissions?.freight?.canDefineVolumes)} tabIndex={(isCliente || (!isAdmin && !currentUser?.subPermissions?.freight?.canDefineVolumes)) ? -1 : undefined} /></FormControl>
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )} />
+                                    <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1.4fr 1fr' }}>
                                         <FormField control={form.control} name="peso" render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Peso (kg)</FormLabel>
@@ -1526,7 +1713,49 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                                 <FormMessage />
                                             </FormItem>
                                         )} />
+
+                                        <FormField control={form.control} name="cubagem" render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Cubagem (m³)</FormLabel>
+                                                <div className="flex gap-1">
+                                                    <div className="relative flex-grow">
+                                                        <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                        <FormControl><Input type="number" step="0.001" placeholder="Ex: 1.25" {...field} className={cn("pl-10", !currentUser?.subPermissions?.freight?.canDefineManualCubage && "bg-muted")} readOnly={!currentUser?.subPermissions?.freight?.canDefineManualCubage} tabIndex={currentUser?.subPermissions?.freight?.canDefineManualCubage ? undefined : -1} /></FormControl>
+                                                    </div>
+                                                    {CubageCalculatorDialog}
+                                                </div>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+
+                                        <FormField control={form.control} name="quantidade" render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Volumes</FormLabel>
+                                                <div className="relative">
+                                                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                    <FormControl><Input type="number" placeholder="Qtd" {...field} className={cn("pl-10", (isCliente || (!isAdmin && !currentUser?.subPermissions?.freight?.canDefineVolumes)) && "bg-muted")} readOnly={isCliente || (!isAdmin && !currentUser?.subPermissions?.freight?.canDefineVolumes)} tabIndex={(isCliente || (!isAdmin && !currentUser?.subPermissions?.freight?.canDefineVolumes)) ? -1 : undefined} /></FormControl>
+                                                </div>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
                                     </div>
+
+                                    <FormField control={form.control} name="veiculo" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Tipo de veículo</FormLabel>
+                                            <div className="flex gap-2">
+                                                <Select onValueChange={field.onChange} value={field.value} disabled={mode === 'fracionado'}>
+                                                    <FormControl>
+                                                        <SelectTrigger><SelectValue placeholder="-- Selecione --" /></SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {activeVehicles.map((vehicle) => <SelectItem key={vehicle.key} value={vehicle.key}>{vehicle.displayName}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
 
                                     {mode === 'fracionado' && (!isCliente || isAdmin) && (isAdmin || currentUser?.subPermissions?.freight?.canViewBasePrice !== false) && (
                                         <FormField control={form.control} name="valorFrete" render={({ field }) => (
@@ -1543,6 +1772,34 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                             </FormItem>
                                         )} />
                                     )}
+
+
+
+                                    {mode === 'fracionado' && (!isCliente || isAdmin) && (isAdmin || currentUser?.subPermissions?.freight?.canViewDeliveryTime !== false) && (
+                                        <FormField control={form.control} name="prazoEntrega" render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Prazo de Entrega (dias)</FormLabel>
+                                                <FormControl><Input type="number" placeholder="Definir prazo manualmente" {...field} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                    )}
+
+                                    <FormField control={form.control} name="contato" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Contato</FormLabel>
+                                            <FormControl><Input placeholder="Telefone/Celular" {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+
+                                    <FormField control={form.control} name="email" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>E-mail</FormLabel>
+                                            <FormControl><Input type="email" placeholder="E-mail do solicitante" {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
 
                                     {cubageItems.length > 0 && (
                                         <div className="md:col-span-2 lg:col-span-3">
@@ -1573,33 +1830,6 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                             </div>
                                         </div>
                                     )}
-
-                                    {mode === 'fracionado' && (!isCliente || isAdmin) && (isAdmin || currentUser?.subPermissions?.freight?.canViewDeliveryTime !== false) && (
-                                        <FormField control={form.control} name="prazoEntrega" render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Prazo de Entrega (dias)</FormLabel>
-                                                <FormControl><Input type="number" placeholder="Definir prazo manualmente" {...field} /></FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )} />
-                                    )}
-
-                                    <FormField control={form.control} name="contato" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Contato</FormLabel>
-                                            <FormControl><Input placeholder="Telefone/Celular" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
-
-                                    <FormField control={form.control} name="email" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>E-mail</FormLabel>
-                                            <FormControl><Input type="email" placeholder="E-mail do solicitante" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
-
                                     <div className="md:col-span-2 lg:col-span-3">
                                         <FormField control={form.control} name="obs" render={({ field }) => (
                                             <FormItem>
@@ -1612,10 +1842,37 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
                                 </div>
                             )}
 
-                            <Button type="submit" className={cn("w-full text-lg py-6", isArmazenagem && "bg-indigo-600 hover:bg-indigo-700")} disabled={isLoading || !!isFetchingCnpj}>
-                                {isLoading || isFetchingCnpj ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Calculator className="mr-2 h-5 w-5" />}
-                                {isLoading ? 'Calculando...' : isFetchingCnpj ? 'Buscando...' : isArmazenagem ? 'Calcular Armazenagem' : 'Calcular Frete'}
-                            </Button>
+                            <div className="flex gap-2">
+                                {onExtrasClick && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-auto w-16 text-primary border-primary/20 hover:bg-primary/10 transition-colors"
+                                        onClick={onExtrasClick}
+                                        title="Adicionar Itens Extras"
+                                    >
+                                        <Plus className="h-6 w-6" />
+                                    </Button>
+                                )}
+                                <Button
+                                    type="submit"
+                                    className={cn(
+                                        "flex-1 text-lg py-6 premium-calculate-btn transition-all duration-300 relative overflow-hidden",
+                                        isArmazenagem ? "premium-calculate-btn-storage" : "premium-calculate-btn-standard",
+                                        activeCalculateGlow && "blooming"
+                                    )}
+                                    disabled={isLoading || !!isFetchingCnpj}
+                                    onClick={triggerCalculateClickAnimation}
+                                >
+                                    {/* Inner premium blooming light burst */}
+                                    {activeCalculateGlow && <span className="premium-btn-bloom" />}
+                                    
+                                    <span className="relative z-10 flex items-center justify-center">
+                                        {isLoading || isFetchingCnpj ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Calculator className="mr-2 h-5 w-5" />}
+                                        {isLoading ? 'Calculando...' : isFetchingCnpj ? 'Buscando...' : isArmazenagem ? 'Calcular Armazenagem' : 'Calcular Frete'}
+                                    </span>
+                                </Button>
+                            </div>
                         </form>
                     </Form>
                 </CardContent>
@@ -1793,11 +2050,101 @@ export const FreightForm = forwardRef<FreightFormHandle, FreightFormProps>(({ on
             {/* XML Upload Preview Verification Dialog */}
             <XmlPreviewDialog
                 isOpen={isPreviewOpen}
-                setIsOpen={setIsPreviewOpen}
+                onClose={() => {
+                    setIsPreviewOpen(false);
+                    setParsedXmlData(null);
+                }}
                 parsedData={parsedXmlData}
                 onConfirm={handleConfirmXmlImport}
-                onCancel={() => setParsedXmlData(null)}
             />
+
+            <style>{`
+                .premium-calculate-btn {
+                    position: relative !important;
+                    overflow: hidden !important;
+                    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important;
+                }
+                
+                .premium-calculate-btn-standard {
+                    background: linear-gradient(135deg, hsl(var(--primary)) 0%, #3b82f6 50%, #1d4ed8 100%) !important;
+                    color: white !important;
+                }
+                
+                .premium-calculate-btn-standard:hover:not(:disabled) {
+                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1e40af 100%) !important;
+                    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.45) !important;
+                    transform: translateY(-2px);
+                }
+                
+                .premium-calculate-btn-storage {
+                    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #4338ca 100%) !important;
+                    color: white !important;
+                }
+                
+                .premium-calculate-btn-storage:hover:not(:disabled) {
+                    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #3730a3 100%) !important;
+                    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.45) !important;
+                    transform: translateY(-2px);
+                }
+                
+                .premium-calculate-btn:active:not(:disabled) {
+                    transform: scale(0.95) translateY(1px) !important;
+                    transition: transform 0.05s linear !important;
+                }
+
+                /* Shine Sweep Effect */
+                .premium-calculate-btn::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -150%;
+                    width: 80%;
+                    height: 100%;
+                    background: linear-gradient(
+                        to right,
+                        rgba(255, 255, 255, 0) 0%,
+                        rgba(255, 255, 255, 0.3) 50%,
+                        rgba(255, 255, 255, 0) 100%
+                    );
+                    transform: skewX(-25deg);
+                    transition: 0.75s;
+                    pointer-events: none;
+                    z-index: 5;
+                }
+                
+                .premium-calculate-btn:hover:not(:disabled)::after {
+                    left: 150%;
+                    transition: 1.2s cubic-bezier(0.19, 1, 0.22, 1);
+                }
+
+                /* Bloom radial burst */
+                .premium-btn-bloom {
+                    position: absolute;
+                    border-radius: 50%;
+                    background: radial-gradient(circle, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 70%);
+                    width: 120px;
+                    height: 120px;
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%) scale(0.2);
+                    pointer-events: none;
+                    z-index: 2;
+                    animation: innerBloomEffect 0.8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+                }
+
+                @keyframes innerBloomEffect {
+                    0% {
+                        transform: translate(-50%, -50%) scale(0.2);
+                        opacity: 1;
+                    }
+                    100% {
+                        transform: translate(-50%, -50%) scale(4);
+                        opacity: 0;
+                    }
+                }
+            `}</style>
         </>
     );
 });

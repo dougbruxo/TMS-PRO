@@ -48,26 +48,42 @@ export function NfeAttachmentDialog({
         if (accessKey.length !== 44) return;
         setIsFetching(true);
         try {
-            const res = await fetch(`/api/nfe/search-by-key?key=${accessKey}`);
+            const res = await fetch('/api/nfe/consulta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chave: accessKey })
+            });
             
             if (!res.ok) {
-                let msg = 'Erro ao buscar o documento.';
+                let msg = 'Documento não encontrado ou erro no serviço externo.';
                 try {
                     const data = await res.json();
-                    msg = data.message || msg;
-                } catch(e) {}
-                toast({ variant: 'destructive', title: 'Não encontrado', description: msg });
+                    if (data.message) msg = data.message;
+                } catch(e) {
+                    console.error('Error parsing error response:', e);
+                }
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Falha na Busca', 
+                    description: msg 
+                });
                 return;
             }
 
-            const contentType = res.headers.get('content-type');
-            if (contentType && contentType.includes('application/xml')) {
-                const xmlText = await res.text();
-                onXmlObtained(xmlText);
+            const data = await res.json();
+            if (data && data.xml_base64) {
+                const xmlText = atob(data.xml_base64);
+                let decodedXml = xmlText;
+                try {
+                    decodedXml = decodeURIComponent(escape(xmlText));
+                } catch(e) {
+                    console.error('Failed to decode UTF-8 XML string, using fallback', e);
+                }
+                onXmlObtained(decodedXml);
                 onOpenChange(false);
-                setAccessKey('');
+                setAccessKey(''); // Reset for next time
             } else {
-                toast({ variant: 'destructive', title: 'Erro', description: 'O formato retornado não é um XML válido.' });
+                toast({ variant: 'destructive', title: 'Erro', description: 'Nenhum XML retornado pelo serviço de consulta.' });
             }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erro de conexão', description: 'Não foi possível buscar a NF-e no momento.' });
@@ -87,22 +103,39 @@ export function NfeAttachmentDialog({
                 <div className="space-y-4 pt-2">
                     <div className="flex flex-col space-y-3">
                         <Label className="text-foreground/80 font-medium">Buscar por Chave de Acesso</Label>
-                        <div className="flex gap-2">
-                            <Input 
-                                placeholder="Digite os 44 dígitos" 
-                                maxLength={44}
-                                value={accessKey}
-                                onChange={(e) => setAccessKey(e.target.value.replace(/\D/g, ''))}
-                                className="font-mono text-sm bg-background/50 focus:bg-background h-12"
-                            />
-                            <Button 
-                                className="h-12 px-6"
-                                disabled={accessKey.length !== 44 || isFetching} 
-                                onClick={handleFetchByKey}
-                            >
-                                {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                                {isFetching ? "Buscando..." : "Buscar"}
-                            </Button>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                                <Input 
+                                    placeholder="Digite ou cole a chave (aceita espaços)" 
+                                    value={accessKey}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        // Permitir dígitos e espaços enquanto digita/cola
+                                        const filtered = val.replace(/[^\d\s]/g, '');
+                                        // Mas para o estado interno, mantemos apenas dígitos para facilitar a busca
+                                        setAccessKey(filtered.replace(/\s/g, '').substring(0, 44));
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && accessKey.length === 44 && !isFetching) {
+                                            handleFetchByKey();
+                                        }
+                                    }}
+                                    className="font-mono text-sm bg-background/50 focus:bg-background h-12"
+                                />
+                                <Button 
+                                    className="h-12 px-6"
+                                    disabled={accessKey.length !== 44 || isFetching} 
+                                    onClick={handleFetchByKey}
+                                >
+                                    {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                                    {isFetching ? "Buscando..." : "Buscar"}
+                                </Button>
+                            </div>
+                            {accessKey.length > 0 && accessKey.length < 44 && (
+                                <span className="text-[10px] text-muted-foreground animate-pulse">
+                                    {accessKey.length} de 44 dígitos informados
+                                </span>
+                            )}
                         </div>
                     </div>
                     

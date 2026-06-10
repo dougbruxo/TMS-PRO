@@ -32,15 +32,48 @@ export async function GET(request: Request) {
     }
 
     const { db } = await connectToDatabase();
-    const customers = await db.collection('customers')
+    let customers = await db.collection('customers')
       .find(query)
       .sort({ code: 1 })
       .skip(skip)
       .limit(limit)
       .toArray();
     
+    // Proactive fallback: also search in client_companies if there is a search term and we want to find B2B companies
+    if (term && customers.length < limit) {
+      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const companyQuery = {
+        $or: [
+          { razaoSocial: { $regex: escapedTerm, $options: 'i' } },
+          { cnpj: { $regex: escapedTerm, $options: 'i' } },
+          { nome: { $regex: escapedTerm, $options: 'i' } },
+          { nomeFantasia: { $regex: escapedTerm, $options: 'i' } }
+        ]
+      };
+      const clientCompanies = await db.collection('client_companies')
+        .find(companyQuery)
+        .limit(limit - customers.length)
+        .toArray();
+      
+      const existingCnpjs = new Set(customers.map(c => c.cnpj?.replace(/[^\d]/g, '')));
+      
+      for (const comp of clientCompanies) {
+        const cleanedCompCnpj = comp.cnpj?.replace(/[^\d]/g, '');
+        if (!existingCnpjs.has(cleanedCompCnpj)) {
+          customers.push({
+            ...comp,
+            _id: comp._id,
+            razaoSocial: comp.razaoSocial || comp.nome || '',
+            cnpj: comp.cnpj || '',
+            code: comp.code || `B2B-${comp._id.toHexString().slice(-5).toUpperCase()}`
+          });
+          existingCnpjs.add(cleanedCompCnpj);
+        }
+      }
+    }
+
     const customersWithId = customers.map(customer => {
-      const { _id, ...rest } = customer;
+      const { _id, ...rest } = customer as any;
       return { id: _id.toHexString(), ...rest };
     });
 

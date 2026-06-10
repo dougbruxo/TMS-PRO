@@ -5,8 +5,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { CompanyManagement } from '@/components/CompanyManagement';
-import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, Building } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function ManageCustomersPage() {
   const { user, loading: authLoading } = useAuth();
@@ -29,10 +29,15 @@ export default function ManageCustomersPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/cadastros')} className="mb-8">
-        &larr; Voltar para Cadastros
-      </Button>
-      <h1 className="text-3xl font-bold text-primary mb-8">Cadastro de Clientes</h1>
+      <PageHeader
+        icon={<Building className="h-4 w-4" />}
+        badge="Registros Mestres"
+        titlePrefix="Cadastro de"
+        titleHighlight="Clientes"
+        description="Gerencie as empresas parceiras, clientes e suas configurações."
+        backHref="/cadastros"
+        backLabel="Voltar para Cadastros"
+      />
       
       <CompanyManagement />
     </main>

@@ -13,10 +13,9 @@ export async function GET(request: Request) {
 
     const { db } = await connectToDatabase();
     let query: any = {};
-    
     if (authUser.role === 'admin' || authUser.role === 'user') {
-        // Transportadora vê os avisos globais/internos dela
-        query.parentId = { $exists: false };
+        // Transportadora vê os avisos globais/internos dela (parentId null)
+        query.parentId = null;
     } else {
         // Cliente vê os avisos da sua própria Matriz
         const tenantId = authUser.role === 'sub-cliente' ? authUser.parentId : authUser.userId;

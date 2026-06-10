@@ -127,6 +127,8 @@ export async function POST(request: Request) {
         createdBy: 'SYSTEM', // Or a user ID if available from request context
         createdAt: new Date().toISOString(),
         quoteId: quote._id.toHexString(),
+        driverId: driver._id.toHexString(),
+        driverName: driver.name,
         operationalEventId: operationalEvent.id,
         history: [{
           timestamp: new Date().toISOString(),

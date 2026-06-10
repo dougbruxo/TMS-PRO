@@ -28,6 +28,7 @@ import { XmlPreviewDialog } from '@/components/XmlPreviewDialog';
 import { parseNfeXml, ParsedNfeData } from '@/lib/xml-parser';
 import { NfeAttachmentDialog } from '@/components/NfeAttachmentDialog';
 import { SefazStatusIndicator } from '@/components/SefazStatusIndicator';
+import { PageHeader } from '@/components/PageHeader';
 
 const NATUREZAS_OPERACAO = [
   "Prestação de serviço de transporte interestadual",
@@ -56,6 +57,8 @@ const cteFormSchema = z.object({
   destinatarioId: z.string().min(1, "Selecione um destinatário."),
   tomadorId: z.string().min(1, "Selecione o tomador do serviço."),
   tomadorIE: z.string().optional(),
+  remetenteIE: z.string().optional(),
+  destinatarioIE: z.string().optional(),
   
   condutorId: z.string().optional(),
   veiculoId: z.string().optional(),
@@ -674,21 +677,46 @@ export default function CtePage() {
 
         const updates: Record<string, string> = {};
         
+        const getPreferredIE = (customerIe: string | undefined | null, xmlIe: string | undefined | null) => {
+            const cleanDb = customerIe ? customerIe.trim().toUpperCase() : '';
+            const cleanXml = xmlIe ? xmlIe.trim().toUpperCase() : '';
+            if (cleanDb && cleanDb !== 'ISENTO') return cleanDb;
+            return cleanXml || cleanDb || 'ISENTO';
+        };
+
         if (remetenteCustomer) {
             form.setValue('remetenteId', remetenteCustomer.id, { shouldValidate: true });
-            form.setValue('tomadorId', remetenteCustomer.id, { shouldValidate: true });
-            if (data.emitente.ie) form.setValue('tomadorIE', data.emitente.ie);
+            const preferredIe = getPreferredIE(remetenteCustomer.inscricaoEstadual, data.emitente.ie);
+            form.setValue('remetenteIE', preferredIe);
             updates[remetenteCustomer.id] = remetenteCustomer.razaoSocial || data.emitente.nome;
         }
 
         if (destCustomer) {
             form.setValue('destinatarioId', destCustomer.id, { shouldValidate: true });
+            const preferredIe = getPreferredIE(destCustomer.inscricaoEstadual, data.destinatario.ie);
+            form.setValue('destinatarioIE', preferredIe);
             updates[destCustomer.id] = destCustomer.razaoSocial || data.destinatario.nome;
             
             // CFOP Logic
             const isInterstate = data.emitente.estado !== data.destinatario.estado;
             const suggestedCfop = mapNfeToCteCfop(data.nfeCfop, remetenteCustomer, isInterstate);
             form.setValue('cfop', suggestedCfop);
+        }
+
+        // Definir Tomador com base no modFrete (0=CIF=Remetente, 1=FOB=Destinatário)
+        let finalTomadorId = remetenteCustomer?.id || '';
+        let finalTomadorIE = form.getValues('remetenteIE') || '';
+        
+        if (data.modFrete === '1' && destCustomer) {
+            finalTomadorId = destCustomer.id;
+            finalTomadorIE = form.getValues('destinatarioIE') || '';
+        }
+        
+        if (finalTomadorId) {
+            form.setValue('tomadorId', finalTomadorId, { shouldValidate: true });
+            if (finalTomadorIE) {
+                form.setValue('tomadorIE', finalTomadorIE);
+            }
         }
         
         setEntityLabels(prev => ({ ...prev, ...updates }));
@@ -777,48 +805,42 @@ export default function CtePage() {
   }
 
   return (
-    <main className="container mx-auto p-4 md:p-8 max-w-5xl animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => router.push('/documents')} 
-            className="h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors rounded-full"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Emissor de CT-e
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Conhecimento de Transporte Eletrônico — SEFAZ v4.00
-            </p>
+    <main className="container mx-auto p-4 md:p-8 max-w-5xl relative overflow-hidden animate-in fade-in duration-500">
+      <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10 animate-float-blur-1" />
+      <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10 animate-float-blur-2" />
+
+      <PageHeader 
+        icon={<FileText className="h-5 w-5" />}
+        badge="CT-e"
+        titlePrefix="Emissor de"
+        titleHighlight="CT-e"
+        description="Conhecimento de Transporte Eletrônico — SEFAZ v4.00"
+        backHref="/documents"
+        backLabel="Documentos"
+        actions={
+          <div className="flex items-center gap-2">
+            <SefazStatusIndicator />
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "text-xs px-3 py-1 font-medium",
+                fiscalSettings?.sefazEnvironment === 'producao' 
+                  ? "border-red-500/50 text-red-600 bg-red-500/5" 
+                  : "border-amber-500/50 text-amber-600 bg-amber-500/5"
+              )}
+            >
+              {fiscalSettings?.sefazEnvironment === 'producao' ? '🔴 Produção' : '🟡 Homologação'}
+            </Badge>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <SefazStatusIndicator />
-          <Badge 
-            variant="outline" 
-            className={cn(
-              "text-xs px-3 py-1 font-medium",
-              fiscalSettings?.sefazEnvironment === 'producao' 
-                ? "border-red-500/50 text-red-600 bg-red-500/5" 
-                : "border-amber-500/50 text-amber-600 bg-amber-500/5"
-            )}
-          >
-            {fiscalSettings?.sefazEnvironment === 'producao' ? '🔴 Produção' : '🟡 Homologação'}
-          </Badge>
-        </div>
-      </div>
+        }
+      />
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 relative">
           
           {/* Card 1: Cotação */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400 opacity-85" />
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
@@ -948,8 +970,8 @@ export default function CtePage() {
           </Card>
 
           {/* Card 1.5: Modos de Emissão */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-blue-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-blue-400 opacity-85" />
             <CardHeader className="pb-3 pt-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500">
@@ -1018,8 +1040,8 @@ export default function CtePage() {
           </Card>
 
           {/* Card 2: Partes Envolvidas */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-purple-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-purple-400 opacity-85" />
             <CardHeader className="pb-3 pt-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-violet-500/10 rounded-lg text-violet-500">
@@ -1035,7 +1057,20 @@ export default function CtePage() {
               <FormField control={form.control} name="remetenteId" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-foreground/80">Remetente</FormLabel>
-                  <AsyncSearchableCombobox fetchUrl="/api/customers" displayKey="razaoSocial" value={field.value} onChange={(v, o)=>{field.onChange(v); if(o) setEntityLabels(p=>({...p, [v]: o.razaoSocial}));}} placeholder="Selecione o remetente" searchPlaceholder="Buscando empresas..." emptyText="Nenhum cliente encontrado" defaultLabel={entityLabels[field.value] ? <><Building2 className="mr-2 h-4 w-4 inline-block text-muted-foreground"/>{entityLabels[field.value]}</>: undefined} renderOption={(opt) => <div className="flex justify-between items-center w-full"><span className="truncate flex items-center"><Building2 className="mr-2 h-4 w-4 text-muted-foreground"/> {opt.razaoSocial}</span></div>} onEdit={(id) => setQuickEditTarget({ type: 'customer', id })} />
+                  <AsyncSearchableCombobox fetchUrl="/api/customers" displayKey="razaoSocial" value={field.value} onChange={(v, o)=>{field.onChange(v); if(o) { setEntityLabels(p=>({...p, [v]: o.razaoSocial})); form.setValue('remetenteIE', o.inscricaoEstadual || ''); } }} placeholder="Selecione o remetente" searchPlaceholder="Buscando empresas..." emptyText="Nenhum cliente encontrado" defaultLabel={entityLabels[field.value] ? <><Building2 className="mr-2 h-4 w-4 inline-block text-muted-foreground"/>{entityLabels[field.value]}</>: undefined} renderOption={(opt) => <div className="flex justify-between items-center w-full"><span className="truncate flex items-center"><Building2 className="mr-2 h-4 w-4 text-muted-foreground"/> {opt.razaoSocial}</span></div>} onEdit={(id) => setQuickEditTarget({ type: 'customer', id })} />
+                  <FormMessage/>
+                </FormItem>
+              )} />
+              
+              <FormField control={form.control} name="remetenteIE" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-foreground/80">
+                    IE do Remetente
+                    <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0 h-4 bg-muted text-muted-foreground border-none">Opcional</Badge>
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder="ISENTO ou numeração" className="bg-background/50 focus:bg-background" {...field} />
+                  </FormControl>
                   <FormMessage/>
                 </FormItem>
               )} />
@@ -1043,7 +1078,20 @@ export default function CtePage() {
               <FormField control={form.control} name="destinatarioId" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-foreground/80">Destinatário</FormLabel>
-                  <AsyncSearchableCombobox fetchUrl="/api/customers" displayKey="razaoSocial" value={field.value} onChange={(v, o)=>{field.onChange(v); if(o) setEntityLabels(p=>({...p, [v]: o.razaoSocial}));}} placeholder="Selecione o destinatário" searchPlaceholder="Buscando empresas..." emptyText="Nenhum cliente encontrado" defaultLabel={entityLabels[field.value] ? <><Building2 className="mr-2 h-4 w-4 inline-block text-muted-foreground"/>{entityLabels[field.value]}</>: undefined} renderOption={(opt) => <div className="flex justify-between items-center w-full"><span className="truncate flex items-center"><Building2 className="mr-2 h-4 w-4 text-muted-foreground"/> {opt.razaoSocial}</span></div>} onEdit={(id) => setQuickEditTarget({ type: 'customer', id })} />
+                  <AsyncSearchableCombobox fetchUrl="/api/customers" displayKey="razaoSocial" value={field.value} onChange={(v, o)=>{field.onChange(v); if(o) { setEntityLabels(p=>({...p, [v]: o.razaoSocial})); form.setValue('destinatarioIE', o.inscricaoEstadual || ''); } }} placeholder="Selecione o destinatário" searchPlaceholder="Buscando empresas..." emptyText="Nenhum cliente encontrado" defaultLabel={entityLabels[field.value] ? <><Building2 className="mr-2 h-4 w-4 inline-block text-muted-foreground"/>{entityLabels[field.value]}</>: undefined} renderOption={(opt) => <div className="flex justify-between items-center w-full"><span className="truncate flex items-center"><Building2 className="mr-2 h-4 w-4 text-muted-foreground"/> {opt.razaoSocial}</span></div>} onEdit={(id) => setQuickEditTarget({ type: 'customer', id })} />
+                  <FormMessage/>
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="destinatarioIE" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-foreground/80">
+                    IE do Destinatário
+                    <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0 h-4 bg-muted text-muted-foreground border-none">Opcional</Badge>
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder="ISENTO ou numeração" className="bg-background/50 focus:bg-background" {...field} />
+                  </FormControl>
                   <FormMessage/>
                 </FormItem>
               )} />
@@ -1051,7 +1099,7 @@ export default function CtePage() {
               <FormField control={form.control} name="tomadorId" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-foreground/80">Tomador (Pagador)</FormLabel>
-                  <AsyncSearchableCombobox fetchUrl="/api/customers" displayKey="razaoSocial" value={field.value} onChange={(v, o)=>{field.onChange(v); if(o) setEntityLabels(p=>({...p, [v]: o.razaoSocial}));}} placeholder="Selecione o tomador" searchPlaceholder="Buscando empresas..." emptyText="Nenhum cliente encontrado" defaultLabel={entityLabels[field.value] ? <><Building2 className="mr-2 h-4 w-4 inline-block text-muted-foreground"/>{entityLabels[field.value]}</>: undefined} renderOption={(opt) => <div className="flex justify-between items-center w-full"><span className="truncate flex items-center"><Building2 className="mr-2 h-4 w-4 text-muted-foreground"/> {opt.razaoSocial}</span></div>} onEdit={(id) => setQuickEditTarget({ type: 'customer', id })} />
+                  <AsyncSearchableCombobox fetchUrl="/api/customers" displayKey="razaoSocial" value={field.value} onChange={(v, o)=>{field.onChange(v); if(o) { setEntityLabels(p=>({...p, [v]: o.razaoSocial})); form.setValue('tomadorIE', o.inscricaoEstadual || ''); } }} placeholder="Selecione o tomador" searchPlaceholder="Buscando empresas..." emptyText="Nenhum cliente encontrado" defaultLabel={entityLabels[field.value] ? <><Building2 className="mr-2 h-4 w-4 inline-block text-muted-foreground"/>{entityLabels[field.value]}</>: undefined} renderOption={(opt) => <div className="flex justify-between items-center w-full"><span className="truncate flex items-center"><Building2 className="mr-2 h-4 w-4 text-muted-foreground"/> {opt.razaoSocial}</span></div>} onEdit={(id) => setQuickEditTarget({ type: 'customer', id })} />
                   <FormMessage/>
                 </FormItem>
               )} />
@@ -1072,8 +1120,8 @@ export default function CtePage() {
           </Card>
           
           {/* Card 3: Transporte (Opcional) */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-400 opacity-85" />
             <CardHeader className="pb-2 pt-5 cursor-pointer" onClick={() => setShowTransport(!showTransport)}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1142,8 +1190,8 @@ export default function CtePage() {
           </Card>
 
           {/* Card 4: Carga e Valores */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-85" />
             <CardHeader className="pb-3 pt-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
@@ -1272,8 +1320,8 @@ export default function CtePage() {
           </Card>
 
           {/* Card 5: Tributação */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden group mb-10">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-rose-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl mb-10">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-rose-400 opacity-85" />
             <CardHeader className="pb-3 pt-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-pink-500/10 rounded-lg text-pink-500">
@@ -1342,8 +1390,8 @@ export default function CtePage() {
           </Card>
 
           {/* Card 6: Informações Adicionais */}
-          <Card className="border border-border/50 shadow-lg shadow-black/5 bg-card/50 backdrop-blur-xl relative overflow-hidden group mb-10">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-500 to-slate-400 opacity-80" />
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl mb-10">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-500 to-slate-400 opacity-85" />
             <CardHeader className="pb-3 pt-5">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-gray-500/10 rounded-lg text-gray-500">
@@ -1376,7 +1424,7 @@ export default function CtePage() {
           </Card>
 
           {/* Sticky CTA Footer */}
-          <div className="sticky bottom-4 z-10 p-4 mt-8 bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex items-center justify-between">
+          <div className="sticky bottom-4 z-10 p-4 mt-8 bg-card/45 backdrop-blur-2xl border border-border/40 rounded-2xl shadow-2xl flex items-center justify-between transition-all duration-300">
             <div className="hidden md:flex flex-col">
               <span className="text-sm font-semibold text-foreground">Revisão Final</span>
               <span className="text-xs text-muted-foreground">O CT-e será transmitido via Webservice SEFAZ.</span>
@@ -1434,14 +1482,13 @@ export default function CtePage() {
       {/* XML Upload Preview Verification Dialog */}
       <XmlPreviewDialog
           isOpen={isPreviewOpen}
-          setIsOpen={setIsPreviewOpen}
-          parsedData={parsedXmlData}
-          onConfirm={handleConfirmXmlImport}
-          onCancel={() => { 
+          onClose={() => { 
               setParsedXmlData(null); 
               setPendingXmlText(null); 
               setIsPreviewOpen(false); 
           }}
+          parsedData={parsedXmlData}
+          onConfirm={handleConfirmXmlImport}
       />
       <NfeAttachmentDialog
           isOpen={isNfeAttachmentOpen}
@@ -1449,6 +1496,50 @@ export default function CtePage() {
           onXmlObtained={handleXmlObtained}
           title="Importar NF-e de Transporte"
       />
+
+      <style>{`
+        @keyframes floatBlur1 {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+            background-color: hsl(var(--primary) / 0.15);
+          }
+          25% {
+            transform: translate(120px, 60px) scale(1.15);
+            background-color: rgba(99, 102, 241, 0.18);
+          }
+          50% {
+            transform: translate(40px, 160px) scale(0.95);
+            background-color: rgba(236, 72, 153, 0.14);
+          }
+          75% {
+            transform: translate(-80px, 100px) scale(1.08);
+            background-color: rgba(59, 130, 246, 0.18);
+          }
+        }
+
+        @keyframes floatBlur2 {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+            background-color: rgba(168, 85, 247, 0.15);
+          }
+          33% {
+            transform: translate(-100px, -120px) scale(1.1);
+            background-color: rgba(59, 130, 246, 0.16);
+          }
+          66% {
+            transform: translate(80px, -60px) scale(0.9);
+            background-color: rgba(236, 72, 153, 0.14);
+          }
+        }
+
+        .animate-float-blur-1 {
+          animation: floatBlur1 28s infinite ease-in-out alternate !important;
+        }
+
+        .animate-float-blur-2 {
+          animation: floatBlur2 38s infinite ease-in-out alternate !important;
+        }
+      `}</style>
     </main>
   );
 }

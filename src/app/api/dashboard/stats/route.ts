@@ -21,8 +21,14 @@ export async function GET(request: Request) {
             $switch: {
               branches: [
                 {
-                  case: { $in: ['$status', ['Fechada', 'Coleta', 'Aguardando Recebimento']] },
+                  // Cotações pendentes de coleta (motorista ainda não coletou)
+                  case: { $in: ['$status', ['Fechada', 'Coleta']] },
                   then: 'Coleta'
+                },
+                {
+                  // Cargas já coletadas, a caminho do galpão
+                  case: { $eq: ['$status', 'Aguardando Recebimento'] },
+                  then: 'Aguardando Recebimento'
                 },
                 {
                   case: { $in: ['$status', ['No Galpão', 'Aguardando Saída', 'Em Carregamento']] },
@@ -66,7 +72,7 @@ export async function GET(request: Request) {
 
     // Formata o resultado para o formato esperado pelo frontend.
     const stats: Record<string, { quoteCount: number; pendingPayments: number, withOccurrences: number }> = {};
-    const allStatuses: QuoteStatus[] = ['Coleta', 'No Galpão', 'Em Rota', 'Entregue', 'Finalizado'];
+    const allStatuses: QuoteStatus[] = ['Coleta', 'Aguardando Recebimento', 'No Galpão', 'Em Rota', 'Entregue', 'Finalizado'];
 
     // Inicializa todos os status com zero
     allStatuses.forEach(status => {

@@ -71,7 +71,7 @@ export async function GET() {
     // --- FINANCIAL ALERTS ---
     // 4. Calculate expense alerts
     const expenses = await db.collection<Expense>('expenses').find({
-      status: { $in: ['pendente', 'parcial'] },
+      status: { $in: ['pendente', 'parcial', 'atrasado'] },
       dueDate: { $exists: true, $ne: null }
     }).project({ dueDate: 1 }).toArray();
 

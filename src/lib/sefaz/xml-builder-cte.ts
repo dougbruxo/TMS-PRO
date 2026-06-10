@@ -40,6 +40,7 @@ export interface CteEmitente {
   codigo_ibge: string;
   telefone?: string;
   rntrc?: string;
+  crt?: number;
 }
 
 export interface CteParticipante {
@@ -487,9 +488,13 @@ function buildToma4(tomador: CteParticipante, tomadorIE?: string): Record<string
  */
 function buildImpostos(dados: CteDados): Record<string, any> {
   const cst = dados.icmsCst || '00';
-  const vBC = formatDecimal(dados.icmsBase ?? dados.valorReceber, 2);
-  const pICMS = formatDecimal(dados.icmsAliquota ?? 0, 2);
-  const vICMS = formatDecimal(dados.icmsValor ?? (vBC * pICMS / 100), 2);
+  const numBase = Number(dados.icmsBase ?? dados.valorReceber ?? 0);
+  const numAliquota = Number(dados.icmsAliquota ?? 0);
+  const numValor = Number(dados.icmsValor ?? (numBase * numAliquota / 100));
+
+  const vBC = formatDecimal(numBase, 2);
+  const pICMS = formatDecimal(numAliquota, 2);
+  const vICMS = formatDecimal(numValor, 2);
 
   const imp: Record<string, any> = { ICMS: {} };
 

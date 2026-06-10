@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
 
     if (driverId && ObjectId.isValid(driverId)) {
-        // Lógica simplificada e correta para encontrar despesas do motorista
+        // Lógica simplificada e robusta para encontrar despesas do motorista
         
         // 1. Encontra todas as cotações onde o motorista participou e extrai apenas o histórico operacional.
         const quotesWithDriverEvents = await db.collection<Quote>('quotes').find(
@@ -52,13 +52,18 @@ export async function GET(request: Request) {
             });
         });
 
-        // 3. Constrói a query para buscar despesas cujo 'operationalEventId' esteja na lista que criámos.
+        // 3. Constrói a query para buscar despesas por 'operationalEventId' na lista de eventos,
+        // OU diretamente pelo 'driverId' gravado na própria despesa (tanto como String quanto como ObjectId).
+        const driverConditions: any[] = [
+            { driverId: driverId },
+            { driverId: new ObjectId(driverId) }
+        ];
+
         if (eventIdsForDriver.length > 0) {
-            query.operationalEventId = { $in: eventIdsForDriver };
-        } else {
-            // Se não houver eventos, não há despesas para este motorista, retorna um array vazio.
-            return NextResponse.json([]);
+            driverConditions.push({ operationalEventId: { $in: eventIdsForDriver } });
         }
+
+        query.$or = driverConditions;
     }
 
     const expenses = await db.collection('expenses').find(query).sort({ dueDate: 1 }).toArray();

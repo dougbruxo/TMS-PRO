@@ -142,6 +142,71 @@ export async function consultarCte(
 }
 
 /**
+ * Consulta o status de uma NF-e pela chave de acesso.
+ */
+export async function consultarNfe(
+  chaveAcesso: string,
+  uf: string,
+  ambiente: SefazAmbiente,
+  cert: CertificateInfo
+): Promise<SefazResponse> {
+  const tpAmb = ambiente === 'producao' ? 1 : 2;
+
+  const consSitNFe = [
+    `<consSitNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">`,
+    `<tpAmb>${tpAmb}</tpAmb>`,
+    `<xServ>CONSULTAR</xServ>`,
+    `<chNFe>${chaveAcesso}</chNFe>`,
+    `</consSitNFe>`,
+  ].join('');
+
+  const { getNfeEndpoints, NFE_SOAP_ACTIONS } = await import('./endpoints');
+  const endpoints = getNfeEndpoints(uf, ambiente);
+  const soapEnvelope = buildSoapEnvelope(consSitNFe, 'nfeDadosMsg', 'http://www.portalfiscal.inf.br/nfe/wsdl/NfeConsultaProtocolo4');
+  
+  const responseXml = await sendSoapRequest(
+    endpoints.NfeConsulta,
+    NFE_SOAP_ACTIONS.NfeConsulta,
+    soapEnvelope,
+    cert
+  );
+
+  return parseNfeResponse(responseXml);
+}
+
+/**
+ * Consulta o status de um MDF-e pela chave de acesso.
+ */
+export async function consultarMdfe(
+  chaveAcesso: string,
+  ambiente: SefazAmbiente,
+  cert: CertificateInfo
+): Promise<SefazResponse> {
+  const tpAmb = ambiente === 'producao' ? 1 : 2;
+
+  const consSitMDFe = [
+    `<consSitMDFe versao="3.00" xmlns="http://www.portalfiscal.inf.br/mdfe">`,
+    `<tpAmb>${tpAmb}</tpAmb>`,
+    `<xServ>CONSULTAR</xServ>`,
+    `<chMDFe>${chaveAcesso}</chMDFe>`,
+    `</consSitMDFe>`,
+  ].join('');
+
+  const endpoints = getMdfeEndpoints(ambiente);
+  const soapEnvelope = buildSoapEnvelope(consSitMDFe, 'mdfeDadosMsg', 'http://www.portalfiscal.inf.br/mdfe/wsdl/MDFeConsulta');
+  const responseXml = await sendSoapRequest(
+    endpoints.MDFeConsultaSit,
+    MDFE_SOAP_ACTIONS.MDFeConsultaSit,
+    soapEnvelope,
+    cert
+  );
+
+  return parseMdfeResponse(responseXml);
+}
+
+
+
+/**
  * Verifica se o serviço da SEFAZ está operando.
  */
 export async function consultarStatusServico(
@@ -205,6 +270,27 @@ export async function enviarEvento(
 
   return parseCteResponse(responseXml);
 }
+
+/**
+ * Envia um evento do MDF-e (cancelamento, encerramento).
+ */
+export async function enviarEventoMdfe(
+  xmlEventoAssinado: string,
+  ambiente: SefazAmbiente,
+  cert: CertificateInfo
+): Promise<SefazResponse> {
+  const endpoints = getMdfeEndpoints(ambiente);
+  const soapEnvelope = buildSoapEnvelope(xmlEventoAssinado, 'mdfeDadosMsg', 'http://www.portalfiscal.inf.br/mdfe/wsdl/MDFeRecepcaoEvento');
+  const responseXml = await sendSoapRequest(
+    endpoints.MDFeRecepcaoEvento,
+    MDFE_SOAP_ACTIONS.MDFeRecepcaoEvento,
+    soapEnvelope,
+    cert
+  );
+
+  return parseMdfeResponse(responseXml);
+}
+
 
 /**
  * Envia um MDF-e assinado para a SEFAZ (emissão síncrona).
@@ -570,6 +656,71 @@ function parseMdfeResponse(responseXml: string): SefazResponse {
 }
 
 /**
+ * Parseia a resposta da SEFAZ para NF-e.
+ */
+function parseNfeResponse(responseXml: string): SefazResponse {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    removeNSPrefix: true,
+    attributeNamePrefix: '@_',
+  });
+
+  let parsed: any;
+  try {
+    parsed = parser.parse(responseXml);
+  } catch (e: any) {
+    return {
+      success: false,
+      cStat: '999',
+      xMotivo: `Erro ao parsear resposta XML da SEFAZ (NF-e): ${e.message}`,
+      xmlRetorno: responseXml,
+    };
+  }
+
+  const retorno = extractDeepValue(parsed, 'retConsSitNFe')
+    || extractDeepValue(parsed, 'nfeConsultaNFResult')
+    || {};
+
+  // Tratar SOAP Fault
+  const fault = extractDeepValue(parsed, 'Fault');
+  if (fault && Object.keys(retorno).length === 0) {
+    const faultCode = extractDeepValue(fault, 'Value') || 'SOAP-FAULT';
+    const faultString = extractDeepValue(fault, 'Text') || 'Erro interno da SEFAZ';
+    return {
+      success: false,
+      cStat: String(faultCode),
+      xMotivo: String(faultString),
+      xmlRetorno: responseXml,
+    };
+  }
+
+  const protNFe = retorno.protNFe || extractDeepValue(parsed, 'protNFe') || {};
+  const infProt = protNFe.infProt || {};
+
+  const cStat = String(infProt.cStat || retorno.cStat || '');
+  const xMotivo = String(infProt.xMotivo || retorno.xMotivo || 'Resposta não identificada');
+  const isAutorizado = String(infProt.cStat) === '100' || String(infProt.cStat) === '150';
+
+  let xmlProtocolo: string | undefined;
+  if (isAutorizado) {
+    const protMatch = responseXml.match(/<protNFe[^>]*>[\s\S]*?<\/protNFe>/);
+    xmlProtocolo = protMatch?.[0];
+  }
+
+  return {
+    success: isAutorizado,
+    cStat,
+    xMotivo,
+    nProt: infProt.nProt ? String(infProt.nProt) : undefined,
+    dhRecbto: infProt.dhRecbto ? String(infProt.dhRecbto) : undefined,
+    chCTe: infProt.chNFe ? String(infProt.chNFe) : undefined,
+    digVal: infProt.digVal ? String(infProt.digVal) : undefined,
+    xmlRetorno: responseXml,
+    xmlProtocolo,
+  };
+}
+
+/**
  * Busca um valor profundo em um objeto parseado (independente de aninhamento SOAP).
  */
 export function extractDeepValue(obj: any, key: string): any {
@@ -583,3 +734,4 @@ export function extractDeepValue(obj: any, key: string): any {
 
   return undefined;
 }
+

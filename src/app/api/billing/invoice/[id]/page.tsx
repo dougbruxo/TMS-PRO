@@ -145,6 +145,70 @@ export default async function UnifiedInvoicePage({ params, searchParams }: PageP
   }
   const companyProfile: CompanyProfile = JSON.parse(JSON.stringify(companyProfileData));
   
+  // Look up the client (tomador) CNPJ from the customers collection
+  let tomadorCnpj = '';
+  try {
+    let tomadorId = (itemToPrint as any).tomadorId;
+    
+    // Fallback for grouped invoices if id is missing on the invoice itself
+    if (!tomadorId && isGroupedInvoice && groupedQuotes.length > 0) {
+      tomadorId = (groupedQuotes[0] as any).tomadorId;
+    }
+
+    const formatCnpjCpf = (raw: string): string => {
+      if (raw.length === 14) return raw.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+      if (raw.length === 11) return raw.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+      return raw;
+    };
+
+    if (tomadorId && ObjectId.isValid(tomadorId)) {
+      // 1. Try customers collection first
+      const customer = await db.collection('customers').findOne({ _id: new ObjectId(tomadorId) });
+      if (customer?.cnpj) {
+        tomadorCnpj = formatCnpjCpf(customer.cnpj.replace(/\D/g, ''));
+      } else {
+        // 2. Fallback: try client_companies collection
+        const clientCompany = await db.collection('client_companies').findOne({ _id: new ObjectId(tomadorId) });
+        if (clientCompany?.cnpj) {
+          tomadorCnpj = formatCnpjCpf(clientCompany.cnpj.replace(/\D/g, ''));
+        }
+      }
+    }
+    
+    // 3. Fallback: search by name (tomador) if ID is missing/invalid or CNPJ still not found
+    if (!tomadorCnpj) {
+      const tomadorName = (itemToPrint as any).tomador;
+      if (tomadorName) {
+        const nameRegex = new RegExp(`^${tomadorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        
+        // Search in customers
+        const customerByName = await db.collection('customers').findOne({ 
+          $or: [
+            { razaoSocial: { $regex: nameRegex } },
+            { nomeFantasia: { $regex: nameRegex } }
+          ]
+        });
+        
+        if (customerByName?.cnpj) {
+          tomadorCnpj = formatCnpjCpf(customerByName.cnpj.replace(/\D/g, ''));
+        } else {
+          // Search in client_companies
+          const companyByName = await db.collection('client_companies').findOne({
+            $or: [
+              { razaoSocial: { $regex: nameRegex } },
+              { nomeFantasia: { $regex: nameRegex } }
+            ]
+          });
+          if (companyByName?.cnpj) {
+            tomadorCnpj = formatCnpjCpf(companyByName.cnpj.replace(/\D/g, ''));
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch tomador CNPJ:', e);
+  }
+
   let totalValue: number;
   let finalQuoteForDocument: Quote;
 
@@ -188,8 +252,10 @@ export default async function UnifiedInvoicePage({ params, searchParams }: PageP
             quote={finalQuoteForDocument} 
             companyProfile={companyProfile} 
             pixQrCodeDataUrl={pixQrCodeDataUrl}
+            pixBrcode={""}
             groupedQuotes={groupedQuotes}
             isPartial={amountType === 'partial'}
+            tomadorCnpj={tomadorCnpj}
         />
       </div>
       <div className="no-print p-8 text-center">

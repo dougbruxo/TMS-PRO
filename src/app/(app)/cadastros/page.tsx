@@ -5,9 +5,11 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserSearch, Building, Truck, Briefcase } from 'lucide-react';
+import { Loader2, UserSearch, Building, Truck, Briefcase, BookUser } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import { cn } from '@/lib/utils';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
+
 
 export default function RegistrationsHubPage() {
   const { user, loading: authLoading } = useAuth();
@@ -62,24 +64,23 @@ export default function RegistrationsHubPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="space-y-2 mb-8">
-        <h1 className="text-3xl font-bold text-primary">Central de Cadastros</h1>
-        <p className="text-muted-foreground">Gerencie os registos mestres do sistema.</p>
-      </div>
+      <PageHeader
+        icon={<BookUser className="h-4 w-4" />}
+        badge="Registros Mestres"
+        titlePrefix="Central de"
+        titleHighlight="Cadastros"
+        description="Gerencie os registos mestres do sistema."
+      />
       
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {registrationCards.filter(card => card.permission).map((card) => (
-          <Link key={card.title} href={card.link} className="flex">
-            <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-              <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                {card.icon}
-                <CardTitle>{card.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <CardDescription>{card.description}</CardDescription>
-              </CardContent>
-            </Card>
-          </Link>
+          <PremiumNavigationCard
+            key={card.title}
+            title={card.title}
+            description={card.description}
+            href={card.link}
+            icon={card.icon}
+          />
         ))}
       </div>
     </main>

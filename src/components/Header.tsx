@@ -311,7 +311,7 @@ export default function Header() {
         const res = await authFetch('/api/my-companies', { headers });
         return res.json();
     },
-    enabled: isCompanyDialogOpen && !!user && (user.role === 'cliente' || user.role === 'sub-cliente'),
+    enabled: !!user && (user.role === 'cliente' || user.role === 'sub-cliente'),
   });
 
   const displayedCompany = React.useMemo(() => {
@@ -372,11 +372,23 @@ export default function Header() {
   
   const accessibleCards = React.useMemo(() => {
     if (!user) return [];
+    const isClientUser = user.role === 'cliente' || user.role === 'sub-cliente';
     const baseCards = dashboardCardsConfig.filter(card => {
       if (card.isClientOnly && (user.role === 'admin' || user.role === 'user')) return false;
       if (user.role === 'admin') return true;
       if (user.role === 'driver') return false; // Drivers don't see main dashboard cards in header
       return !!user[card.permissionKey as keyof User];
+    }).map(card => {
+      // Overwrite links dynamically for B2B Client users to avoid carrier path hijack
+      if (isClientUser) {
+        if (card.link === '/quotes') {
+          return { ...card, link: '/cliente/cotacoes' };
+        }
+        if (card.link === '/cliente/armazenagem/cotacao') {
+          return { ...card, link: '/cliente/armazenagem' };
+        }
+      }
+      return card;
     });
 
     if (cardOrder.length === 0) return baseCards;
@@ -510,7 +522,7 @@ export default function Header() {
                         })}
                         <DropdownMenuSeparator />
                     </DropdownMenuGroup>
-                    <DropdownMenuItem onSelect={() => router.push(userRole === 'cliente' || userRole === 'sub-cliente' ? '/cliente/dashboard' : '/dashboard')}><Home className="mr-2 h-4 w-4" /><span>Página Inicial</span></DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => router.push(user.role === 'cliente' || user.role === 'sub-cliente' ? '/cliente/dashboard' : '/dashboard')}><Home className="mr-2 h-4 w-4" /><span>Página Inicial</span></DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setIsCompanyDialogOpen(true)}><Building className="mr-2 h-4 w-4" /><span>Empresa</span></DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => router.push('/settings/dashboard')}><LayoutDashboard className="mr-2 h-4 w-4" /><span>Configurar Dashboard</span></DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setIsAvatarChangeOpen(true)}><ImageIcon className="mr-2 h-4 w-4" /><span>Mudar Foto de Perfil</span></DropdownMenuItem>

@@ -13,6 +13,7 @@ import type { Quote, QuoteStatus } from '@/lib/types';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
 
 
 const receivingStatuses: QuoteStatus[] = ['Aguardando Recebimento', 'No Galpão', 'Em Carregamento', 'Em Rota', 'Entregue'];
@@ -20,10 +21,9 @@ const receivingStatuses: QuoteStatus[] = ['Aguardando Recebimento', 'No Galpão'
 const statusToSlug = (status: QuoteStatus): string => {
     switch (status) {
         case 'Aguardando Recebimento': return 'awaiting-receipt';
-        case 'No Galpão':
-        case 'Aguardando Saída':
-            return 'in-warehouse';
-        case 'Em Rota': return 'dispatched'; // Changed to dispatched to group under "Saídas Recentes"
+        case 'No Galpão': return 'in-warehouse';
+        case 'Aguardando Saída': return 'loading'; // Bipagem de saída é centralizada em /receiving/loading
+        case 'Em Rota': return 'dispatched';
         case 'Entregue': return 'dispatched';
         case 'Finalizado': return 'dispatched';
         case 'Em Carregamento': return 'loading';
@@ -49,9 +49,13 @@ const renderQuoteResult = (quote: any) => (
 const handleQuoteResultClick = (quote: any, router: any) => {
     let slug = statusToSlug(quote.status);
     const quoteCode = quote.quoteCode || '';
+    // 'loading' vai para /receiving/loading com o quoteCode para destacar a cotação
+    // 'dispatched' vai para /receiving/status/dispatched sem filtro de quoteCode (lista geral)
     const href = slug === 'loading'
-        ? `/receiving/loading`
-        : `/receiving/status/${slug}?quoteCode=${encodeURIComponent(quoteCode)}`;
+        ? `/receiving/loading?quoteCode=${encodeURIComponent(quoteCode)}`
+        : slug === 'dispatched'
+            ? `/receiving/status/dispatched`
+            : `/receiving/status/${slug}?quoteCode=${encodeURIComponent(quoteCode)}`;
     router.push(href);
 };
 
@@ -103,7 +107,7 @@ export default function ReceivingDashboardPage() {
         title: 'Aguardando Recebimento',
         description: "Cargas a caminho do galpão, aguardando confirmação de recebimento.", 
         href: "/receiving/status/awaiting-receipt",
-        count: stats['Coleta']?.quoteCount || 0
+        count: stats['Aguardando Recebimento']?.quoteCount || 0
     },
     'in-warehouse': { 
         icon: <Warehouse className="h-8 w-8 text-primary" />, 
@@ -144,9 +148,7 @@ export default function ReceivingDashboardPage() {
                 </div>
                 
                 <div className="space-y-4">
-                    <div className="inline-flex items-center rounded-lg bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                        <Warehouse className="mr-2 h-4 w-4" /> Monitor de Recepção de XMLs e Cargas
-                    </div>
+
                     <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl text-foreground">
                         Área de <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/60">Recebimento</span>
                     </h1>
@@ -174,25 +176,15 @@ export default function ReceivingDashboardPage() {
             ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {Object.values(statusDetails).map((details) => (
-                        <Link key={details.title} href={details.href} className="group flex">
-                            <Card className="flex flex-col w-full border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg transition-all duration-300 hover:shadow-primary/10 hover:-translate-y-1 hover:border-primary/50 relative overflow-hidden">
-                                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4 relative z-10">
-                                    <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                                        {details.icon}
-                                    </div>
-                                    <div className="flex-grow">
-                                        <CardTitle className="text-lg font-semibold">{details.title}</CardTitle>
-                                        <Badge variant="secondary" className="mt-2 font-mono bg-background/50 backdrop-blur-sm">
-                                            {details.count} Cargas
-                                        </Badge>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow relative z-10">
-                                    <CardDescription className="text-sm leading-relaxed">{details.description}</CardDescription>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                        <PremiumNavigationCard
+                            key={details.title}
+                            title={details.title}
+                            description={details.description}
+                            href={details.href}
+                            icon={details.icon}
+                            badgeCount={details.title !== 'Gerenciar Carregamento' ? details.count : undefined}
+                            badgeText="Cargas"
+                        />
                     ))}
                 </div>
             )}

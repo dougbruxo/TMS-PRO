@@ -11,11 +11,60 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/lib/api-client';
 
 const formatCurrency = (value: number) => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function formatDriverExpenseDescription(desc: string): string {
+  if (!desc) return '—';
+  
+  // 1. Extract the quote code (e.g. 37K)
+  let quoteCode = '';
+  if (desc.includes('| Cotação')) {
+    const parts = desc.split('| Cotação');
+    quoteCode = parts[parts.length - 1]?.trim() || '';
+  } else if (desc.includes(' - ')) {
+    const parts = desc.split(' - ');
+    quoteCode = parts[parts.length - 1]?.trim() || '';
+  } else {
+    quoteCode = desc.trim();
+  }
+  
+  // Clean up any remaining characters or prefixes from quoteCode if needed
+  quoteCode = quoteCode.replace(/^cotação\s+/i, '').trim();
+  
+  // 2. Identify if it is a collection (origem x galpão) or delivery (origem x destino or galpão x destino)
+  const descUpper = desc.toUpperCase();
+  
+  // A collection specifically involves ATRIBUICAO_COLETA_GALPAO or COLETA
+  const isColeta = descUpper.includes('ATRIBUICAO_COLETA_GALPAO') || 
+                   (descUpper.includes('COLETA') && !descUpper.includes('ENTREGA'));
+                   
+  // A delivery involves manifests, outputs, or explicitly "entrega" or "saida" or "pagamento motorista"
+  const isEntrega = descUpper.includes('ENTREGA') || 
+                    descUpper.includes('SAIDA') || 
+                    descUpper.includes('ENTREGUE') ||
+                    descUpper.includes('ROMANEIO') ||
+                    descUpper.includes('PAGAMENTO MOTORISTA') ||
+                    descUpper.includes('PAGAMENTO_MOTORISTA');
+  
+  if (isColeta) {
+    return `COLETA - ${quoteCode}`;
+  }
+  
+  if (isEntrega) {
+    return `ENTREGA - ${quoteCode}`;
+  }
+  
+  // Fallbacks based on partial matches
+  if (descUpper.includes('COLETA')) {
+    return `COLETA - ${quoteCode}`;
+  }
+  
+  // Default fallback for driver actions/manifests (since they are typically collections or deliveries)
+  return `ENTREGA - ${quoteCode}`;
+}
 
 export default function DriverPendingFinancialPage() {
   const { user } = useAuth();
@@ -31,7 +80,7 @@ export default function DriverPendingFinancialPage() {
       const response = await authFetch(`/api/expenses?driverId=${user.id}`);
       if (!response.ok) throw new Error('Falha ao carregar os dados financeiros.');
       const data = await response.json();
-      setExpenses(data.filter((e: Expense) => e.status === 'pendente' || e.status === 'parcial'));
+      setExpenses(data.filter((e: Expense) => e.status === 'pendente' || e.status === 'parcial' || e.status === 'atrasado'));
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Erro', description: error.message });
     } finally {
@@ -68,35 +117,34 @@ export default function DriverPendingFinancialPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Descrição</TableHead>
-                            <TableHead>Vencimento</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Valor</TableHead>
+                            <TableHead className="px-2">Descrição</TableHead>
+                            <TableHead className="w-[100px] px-2 text-center">Status</TableHead>
+                            <TableHead className="w-[120px] px-2 text-right">Valor</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
+                                <TableCell colSpan={3} className="h-24 text-center">
                                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                                 </TableCell>
                             </TableRow>
                         ) : expenses.length > 0 ? expenses.map(e => (
                             <TableRow key={e.id}>
-                                <TableCell>{e.description}</TableCell>
-                                <TableCell>{format(parseISO(e.dueDate), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell>
+                                <TableCell className="px-2 font-medium">{formatDriverExpenseDescription(e.description)}</TableCell>
+                                <TableCell className="px-2 text-center">
                                     <Badge className={cn(
-                                        e.status === 'parcial' ? 'bg-orange-500' : 'bg-yellow-500'
+                                        e.status === 'parcial' ? 'bg-orange-500' : 'bg-yellow-500',
+                                        "capitalize"
                                     )}>
                                         {e.status}
                                     </Badge>
                                 </TableCell>
-                                <TableCell className="text-right font-semibold">{formatCurrency(e.value)}</TableCell>
+                                <TableCell className="px-2 text-right font-semibold">{formatCurrency(e.value)}</TableCell>
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Nenhum pagamento pendente.</TableCell>
+                                <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">Nenhum pagamento pendente.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>

@@ -79,14 +79,7 @@ export const dashboardCardsConfig: DashboardCardConfig[] = [
     permissionKey: 'armazenagemAccess',
     isClientOnly: true,
   },
-  {
-    title: "Cotação de Armazenagem",
-    description: "Simule custos de armazenagem e movimentação de estoque.",
-    link: "/cliente/armazenagem/cotacao",
-    icon: <Calculator className="h-8 w-8 text-primary" />,
-    permissionKey: 'quoteArmazenagemAccess',
-    isClientOnly: true,
-  },
+
    {
     title: "Chat Interno",
     description: "Comunique-se com outros usuários do sistema.",

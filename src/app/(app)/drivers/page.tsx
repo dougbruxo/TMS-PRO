@@ -5,8 +5,8 @@ import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { DriverManagement } from '@/components/DriverManagement';
-import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, UserSearch } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 function ManageDriversContent() {
   const { user, loading: authLoading } = useAuth();
@@ -31,10 +31,15 @@ function ManageDriversContent() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/cadastros')} className="mb-8">
-        &larr; Voltar para Cadastros
-      </Button>
-      <h1 className="text-3xl font-bold text-primary mb-8">Gerenciar Motoristas</h1>
+      <PageHeader
+        icon={<UserSearch className="h-4 w-4" />}
+        badge="Registros Mestres"
+        titlePrefix="Gerenciar"
+        titleHighlight="Motoristas"
+        description="Adicione, edite ou remova motoristas e gerencie seus acessos."
+        backHref="/cadastros"
+        backLabel="Voltar para Cadastros"
+      />
       <DriverManagement 
         quickEditId={quickEditId} 
         onQuickEditComplete={() => {

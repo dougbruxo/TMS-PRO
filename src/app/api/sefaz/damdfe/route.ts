@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/database';
 import { generateDamdfePdf, type MdfeDocumentoCompleto } from '@/lib/sefaz/damdfe-generator';
+import { parseMdfeXml } from '@/lib/sefaz/xml-parser-mdfe';
 
 /**
  * GET /api/sefaz/damdfe?id=<documentId>
@@ -35,6 +36,57 @@ export async function GET(request: Request) {
     
     // Buscar dados da empresa emitente
     const emitente = await db.collection('company_profiles').findOne({ isDefault: true });
+    
+    // Resolver logo para URL absoluta
+    const origin = new URL(request.url).origin;
+    let logoUrl: string | undefined;
+    if (emitente?.logoUrl) {
+      logoUrl = emitente.logoUrl.startsWith('/')
+        ? `${origin}${emitente.logoUrl}`
+        : emitente.logoUrl;
+    } else if (emitente?.logo) {
+      logoUrl = emitente.logo.startsWith('/')
+        ? `${origin}${emitente.logo}`
+        : emitente.logo;
+    }
+
+    // ============================================================
+    // ESTRATÉGIA 1: XML original da SEFAZ (fonte canônica)
+    // ============================================================
+    if (doc.xmlAssinado) {
+      try {
+        const { mdfeData } = parseMdfeXml(doc.xmlAssinado);
+
+        // Mesclar dados que não constam no XML
+        mdfeData.emitente.logoUrl = logoUrl;
+        if (!mdfeData.emitente.rntrc && emitente?.rntrc) {
+          mdfeData.emitente.rntrc = emitente.rntrc;
+        }
+
+        // Protocolo e data de autorização do banco, se o XML não trouxer
+        if (!mdfeData.protocolo && doc.protocolo) mdfeData.protocolo = doc.protocolo;
+        if (!mdfeData.dataAutorizacao && doc.dataAutorizacao) {
+          mdfeData.dataAutorizacao = new Date(doc.dataAutorizacao).toLocaleDateString('pt-BR');
+        }
+
+        const pdfBuffer = await generateDamdfePdf(mdfeData);
+        return new Response(pdfBuffer, {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="DAMDFE_${mdfeData.numeroMdfe}_${mdfeData.chaveAcesso.slice(-8)}.pdf"`,
+            'Content-Length': String(pdfBuffer.length),
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        });
+      } catch (parseErr: any) {
+        console.warn('Falha ao parsear XML do MDF-e, usando fallback do banco:', parseErr.message);
+      }
+    }
+
+    // ============================================================
+    // ESTRATÉGIA 2: Fallback — dados do banco de dados
+    // ============================================================
     if (!emitente) {
       return NextResponse.json({ message: 'Perfil da empresa emitente não configurado.' }, { status: 400 });
     }
@@ -46,7 +98,7 @@ export async function GET(request: Request) {
       ambiente: doc.environment === 'producao' ? 'producao' : 'homologacao',
       serie: doc.serie || 1,
       numeroMdfe: doc.numeroMdfe || doc.numero || 0,
-      dataEmissao: doc.dataEmissao ? new Date(doc.dataEmissao).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR'),
+      dataEmissao: doc.dataEmissao ? new Date(doc.dataEmissao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
 
       emitente: {
         razaoSocial: emitente.razaoSocial || '',
@@ -58,7 +110,7 @@ export async function GET(request: Request) {
         cep: emitente.cep || '',
         telefone: emitente.telefone,
         rntrc: emitente.rntrc || '',
-        logoUrl: emitente.logoUrl ? (emitente.logoUrl.startsWith('/') ? `${new URL(request.url).origin}${emitente.logoUrl}` : emitente.logoUrl) : (emitente.logo ? (emitente.logo.startsWith('/') ? `${new URL(request.url).origin}${emitente.logo}` : emitente.logo) : ''),
+        logoUrl,
       },
 
       motoristaNome: doc.motoristaNome || doc.condutor?.nome || '',

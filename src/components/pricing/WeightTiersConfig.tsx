@@ -38,7 +38,7 @@ export function WeightTiersConfig({ settings, setSettings }: WeightTiersConfigPr
                 </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-                
+
                 <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg p-4 text-sm text-blue-800 dark:text-blue-300">
                     <p className="font-medium mb-1">Como funciona o cálculo (Cascata):</p>
                     <p className="mb-2">Se a cotação não encontrar faixa na Rota, tenta achar na Região, e se não achar, usa a Global. Fator 1.00 mantém a taxa original.</p>
@@ -46,8 +46,8 @@ export function WeightTiersConfig({ settings, setSettings }: WeightTiersConfigPr
 
                 <div className="space-y-3">
                     <Label className="text-base font-bold">Modo de Aplicação Ativo</Label>
-                    <RadioGroup 
-                        value={mode} 
+                    <RadioGroup
+                        value={mode}
                         onValueChange={(val) => handleModeChange(val as 'global' | 'region' | 'route')}
                         className="flex flex-col md:flex-row gap-4"
                     >
@@ -105,7 +105,7 @@ function GlobalTiers({ settings, setSettings }: WeightTiersConfigProps) {
 function RegionTiers({ settings, setSettings }: WeightTiersConfigProps) {
     const { regions } = settings;
     const regionNames = useMemo(() => Object.keys(regions || {}).sort(), [regions]);
-    
+
     const [selectedOrigin, setSelectedOrigin] = useState<string>(regionNames[0] || '');
     const [selectedDest, setSelectedDest] = useState<string>(regionNames[0] || '');
 
@@ -125,7 +125,7 @@ function RegionTiers({ settings, setSettings }: WeightTiersConfigProps) {
 
     return (
         <div className="space-y-4">
-             <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex flex-col md:flex-row gap-6">
                 {/* Seletor Lateral */}
                 <div className="w-full md:w-[150px] shrink-0 border rounded-lg p-2 bg-muted/10 h-[400px] flex flex-col">
                     <h3 className="font-bold text-xs uppercase text-muted-foreground text-center mb-2 pb-2 border-b">Origem (Região)</h3>
@@ -143,13 +143,13 @@ function RegionTiers({ settings, setSettings }: WeightTiersConfigProps) {
                         </div>
                     </ScrollArea>
                 </div>
-                
+
                 {/* Destinos */}
                 <div className="flex-1 space-y-4">
                     <div className="bg-muted p-2 rounded-lg flex overflow-x-auto gap-2 items-center">
                         <span className="text-xs font-bold uppercase text-muted-foreground shrink-0 ml-2">Destino:</span>
                         {regionNames.map(region => (
-                             <button
+                            <button
                                 key={region}
                                 onClick={() => setSelectedDest(region)}
                                 className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap ${selectedDest === region ? 'bg-background shadow-sm border border-border text-foreground' : 'text-muted-foreground hover:bg-background/50'}`}
@@ -172,7 +172,7 @@ function RegionTiers({ settings, setSettings }: WeightTiersConfigProps) {
                         <WeightTierTable tiers={tiers} onChange={handleTiersChange} />
                     </div>
                 </div>
-             </div>
+            </div>
         </div>
     );
 }
@@ -182,7 +182,7 @@ function RegionTiers({ settings, setSettings }: WeightTiersConfigProps) {
 // ------------------------------
 function RouteTiers({ settings, setSettings }: WeightTiersConfigProps) {
     const { regions } = settings;
-    
+
     // Agrupar UFs por região para a listagem
     const ufsByRegion = useMemo(() => {
         const sorted: Record<string, string[]> = {};
@@ -210,32 +210,32 @@ function RouteTiers({ settings, setSettings }: WeightTiersConfigProps) {
 
     return (
         <div className="space-y-4">
-             <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex flex-col md:flex-row gap-6">
                 {/* Seletor Lateral UFs por Região */}
                 <div className="w-full md:w-[130px] shrink-0">
-                  <h3 className="font-bold mb-2 text-[10px] uppercase text-muted-foreground tracking-tighter text-center">Origem (UF)</h3>
-                  <ScrollArea className="h-[400px] border rounded-lg bg-muted/5 shadow-inner">
-                    <div className="p-1.5 flex flex-col gap-1">
-                      {originRegions.map(region => (
-                        <div key={region} className="mb-2">
-                          <h4 className="font-black text-[9px] text-primary/60 mb-1 uppercase tracking-tighter text-center border-b pb-0.5 leading-none">{region}</h4>
-                          <div className="flex flex-col gap-1">
-                              {(ufsByRegion[region] || []).map(uf => (
-                              <button
-                                  key={uf}
-                                  onClick={() => setSelectedOrigin(uf)}
-                                  className={`py-1.5 px-0 text-center text-[10px] font-black rounded transition-all border ${selectedOrigin === uf ? 'bg-primary text-primary-foreground border-primary shadow-sm scale-105 z-10' : 'hover:bg-accent border-transparent opacity-60 hover:opacity-100 bg-background/50'}`}
-                              >
-                                  {uf}
-                              </button>
-                              ))}
-                          </div>
+                    <h3 className="font-bold mb-2 text-[10px] uppercase text-muted-foreground tracking-tighter text-center">Origem (UF)</h3>
+                    <ScrollArea className="h-[400px] border rounded-lg bg-muted/5 shadow-inner">
+                        <div className="p-1.5 flex flex-col gap-1">
+                            {originRegions.map(region => (
+                                <div key={region} className="mb-2">
+                                    <h4 className="font-black text-[9px] text-primary/60 mb-1 uppercase tracking-tighter text-center border-b pb-0.5 leading-none">{region}</h4>
+                                    <div className="flex flex-col gap-1">
+                                        {(ufsByRegion[region] || []).map(uf => (
+                                            <button
+                                                key={uf}
+                                                onClick={() => setSelectedOrigin(uf)}
+                                                className={`py-1.5 px-0 text-center text-[10px] font-black rounded transition-all border ${selectedOrigin === uf ? 'bg-primary text-primary-foreground border-primary shadow-sm scale-105 z-10' : 'hover:bg-accent border-transparent opacity-60 hover:opacity-100 bg-background/50'}`}
+                                            >
+                                                {uf}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                    </ScrollArea>
                 </div>
-                
+
                 {/* Destinos */}
                 <div className="flex-1 space-y-4 flex flex-col min-h-0">
                     <div>
@@ -268,7 +268,7 @@ function RouteTiers({ settings, setSettings }: WeightTiersConfigProps) {
                         <WeightTierTable tiers={tiers} onChange={handleTiersChange} />
                     </div>
                 </div>
-             </div>
+            </div>
         </div>
     );
 }
@@ -279,14 +279,50 @@ function RouteTiers({ settings, setSettings }: WeightTiersConfigProps) {
 function WeightTierTable({ tiers, onChange }: { tiers: WeightTier[], onChange: (tiers: WeightTier[]) => void }) {
     const sortedTiers = [...tiers].sort((a, b) => a.maxWeight - b.maxWeight);
 
-    const handleChange = (index: number, field: keyof WeightTier, value: string) => {
+    // Estado local para controlar a edição sem re-sort imediato
+    const [editingCell, setEditingCell] = useState<{ index: number; field: string } | null>(null);
+    const [editingValue, setEditingValue] = useState<string>('');
+
+    const handleStartEdit = (index: number, field: string, currentValue: number | string) => {
+        setEditingCell({ index, field });
+        setEditingValue(String(currentValue));
+    };
+
+    const handleEditChange = (value: string) => {
+        setEditingValue(value);
+    };
+
+    const handleCommitEdit = () => {
+        if (!editingCell) return;
+        const { index, field } = editingCell;
         const newTiers = [...sortedTiers];
+
         if (field === 'label') {
-            newTiers[index] = { ...newTiers[index], label: value };
+            newTiers[index] = { ...newTiers[index], label: editingValue };
         } else {
-            newTiers[index] = { ...newTiers[index], [field]: parseFloat(value) || 0 };
+            const numVal = parseFloat(editingValue) || 0;
+            newTiers[index] = { ...newTiers[index], [field]: numVal };
         }
+
+        setEditingCell(null);
+        setEditingValue('');
         onChange(newTiers);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleCommitEdit();
+            (e.target as HTMLInputElement).blur();
+        }
+    };
+
+    const handleDirectChange = (index: number, field: keyof WeightTier, value: string) => {
+        // Para label, pode aplicar direto sem conflito de sort
+        if (field === 'label') {
+            const newTiers = [...sortedTiers];
+            newTiers[index] = { ...newTiers[index], label: value };
+            onChange(newTiers);
+        }
     };
 
     const handleAdd = () => {
@@ -300,6 +336,9 @@ function WeightTierTable({ tiers, onChange }: { tiers: WeightTier[], onChange: (
         newTiers.splice(index, 1);
         onChange(newTiers);
     };
+
+    const isEditing = (index: number, field: string) =>
+        editingCell?.index === index && editingCell?.field === field;
 
     return (
         <div className="space-y-4">
@@ -320,8 +359,11 @@ function WeightTierTable({ tiers, onChange }: { tiers: WeightTier[], onChange: (
                                 <td className="px-4 py-2">
                                     <Input
                                         type="number"
-                                        value={tier.maxWeight}
-                                        onChange={(e) => handleChange(index, 'maxWeight', e.target.value)}
+                                        value={isEditing(index, 'maxWeight') ? editingValue : tier.maxWeight}
+                                        onFocus={() => handleStartEdit(index, 'maxWeight', tier.maxWeight)}
+                                        onChange={(e) => isEditing(index, 'maxWeight') ? handleEditChange(e.target.value) : undefined}
+                                        onBlur={handleCommitEdit}
+                                        onKeyDown={handleKeyDown}
                                         className="w-24 sm:w-32 h-9 font-mono text-xs"
                                         min={1}
                                     />
@@ -330,8 +372,11 @@ function WeightTierTable({ tiers, onChange }: { tiers: WeightTier[], onChange: (
                                     <Input
                                         type="number"
                                         step="0.01"
-                                        value={tier.factor}
-                                        onChange={(e) => handleChange(index, 'factor', e.target.value)}
+                                        value={isEditing(index, 'factor') ? editingValue : tier.factor}
+                                        onFocus={() => handleStartEdit(index, 'factor', tier.factor)}
+                                        onChange={(e) => isEditing(index, 'factor') ? handleEditChange(e.target.value) : undefined}
+                                        onBlur={handleCommitEdit}
+                                        onKeyDown={handleKeyDown}
                                         className="w-20 sm:w-24 h-9 font-mono text-xs"
                                         min={0.01}
                                     />
@@ -340,7 +385,7 @@ function WeightTierTable({ tiers, onChange }: { tiers: WeightTier[], onChange: (
                                     <Input
                                         type="text"
                                         value={tier.label || ''}
-                                        onChange={(e) => handleChange(index, 'label', e.target.value)}
+                                        onChange={(e) => handleDirectChange(index, 'label', e.target.value)}
                                         className="h-9 text-xs"
                                         placeholder="Ex: Até 500 kg"
                                     />

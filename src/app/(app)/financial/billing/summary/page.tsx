@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Loader2, DollarSign, HandCoins, Banknote, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
@@ -135,12 +136,12 @@ export default function BillingSummaryPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-       <Button variant="outline" onClick={() => router.push('/financial/billing')} className="mb-8">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Gestão de Cobranças
-      </Button>
-      <div className="space-y-2 mb-8">
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
           <h1 className="text-3xl font-bold text-primary">Resumo de Cobranças</h1>
           <p className="text-muted-foreground">Analise suas receitas por período e por cliente.</p>
+        </div>
+        <BackButton href="/financial/billing" label="Voltar para Gestão de Cobranças" className="mb-0 mt-2" />
       </div>
       
       <Card className="mb-8">

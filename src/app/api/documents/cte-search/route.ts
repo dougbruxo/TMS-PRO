@@ -11,10 +11,67 @@ import { connectToDatabase } from '@/lib/database';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const chave = (searchParams.get('chave') || '').trim();
     const q = (searchParams.get('q') || '').trim();
     const limit = Math.min(parseInt(searchParams.get('limit') || '15'), 50);
 
     const { db } = await connectToDatabase();
+
+    if (chave) {
+      const cte = await db.collection('issued_documents').findOne({
+        type: 'CTE',
+        chaveAcesso: chave,
+        status: { $in: ['autorizado', 'concluido', 'sucesso', 'autorizado sefaz'] }
+      });
+
+      if (!cte) {
+        return NextResponse.json({ message: 'CT-e não encontrado ou não autorizado.' }, { status: 404 });
+      }
+
+      let quote = await db.collection('quotes').findOne({
+        cteChave: chave
+      });
+
+      if (!quote && cte._id) {
+        quote = await db.collection('quotes').findOne({
+          cteId: cte._id.toHexString()
+        });
+      }
+
+      let transportadora = await db.collection('company_profiles').findOne({ isDefault: true });
+      if (!transportadora) {
+        transportadora = await db.collection('company_profiles').findOne({});
+      }
+
+      const quoteOrigem = quote ? quote.cidadeOrigem : (cte.cidadeOrigem ? `${cte.cidadeOrigem} - ${cte.ufOrigem || ''}`.toUpperCase() : '');
+      const quoteDestino = quote ? quote.cidadeDestino : (cte.cidadeDestino ? `${cte.cidadeDestino} - ${cte.ufDestino || ''}`.toUpperCase() : '');
+
+      const transportadoraCidade = transportadora ? `${transportadora.cidade} - ${transportadora.estado}`.toUpperCase() : '';
+
+      const status = quote ? quote.status : 'Coleta';
+      let cidadeOrigem = quoteOrigem;
+      if (status === 'No Galpão' || status === 'Aguardando Saída' || status === 'Em Carregamento') {
+        cidadeOrigem = transportadoraCidade || quoteOrigem;
+      }
+      const cidadeDestino = quoteDestino;
+
+      const driverEvent = quote?.operationalHistory?.find((e: any) => e.driverId);
+      const driverId = driverEvent?.driverId || cte.formData?.condutorId || '';
+
+      const vehicleId = cte.formData?.veiculoId || '';
+
+      const vFrete = quote ? quote.valorFinal : cte.valorServico;
+      const vAdiantamento = quote?.operationalHistory?.reduce((sum: number, event: any) => sum + (event.paidValue || 0), 0) || 0;
+
+      return NextResponse.json({
+        cidadeOrigem,
+        cidadeDestino,
+        vFrete,
+        vAdiantamento,
+        driverId,
+        vehicleId
+      });
+    }
 
     // Filtro base: apenas CT-e autorizados
     const baseFilter: any = {

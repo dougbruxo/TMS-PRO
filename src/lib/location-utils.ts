@@ -1,3 +1,4 @@
+import { Db } from 'mongodb';
 
 /**
  * Mapeamento de Capitais por UF (Brasil)
@@ -48,7 +49,7 @@ export const METROPOLITAN_REGIONS: Record<string, string[]> = {
   ],
   'RJ': [
     'Niterói', 'Duque de Caxias', 'São Gonçalo', 'Nova Iguaçu', 'Belford Roxo', 
-    'Nilópolis', 'Mesquita', 'Queimados', 'Japeri', 'Seropédica', 'Itaguaí', 'Magé', 'Guapimirim'
+    'Nilópolis', 'Mesquita', 'Queimados', 'Japeri', 'Seropédica', 'Itaguaí', 'Magé', 'Guapirimim'
   ],
   'MG': [
     'Contagem', 'Betim', 'Ribeirão das Neves', 'Santa Luzia', 'Ibirité', 'Sabará', 
@@ -122,4 +123,106 @@ export function identifyLocationType(cityWithUf: string): {
   }
 
   return { type: 'interior', city, uf };
+}
+
+async function geocodeCity(db: Db, cityString: string): Promise<{ lat: number; lon: number } | null> {
+  const coll = db.collection('city_coordinates');
+  const cached = await coll.findOne({ city: cityString });
+  if (cached && cached.lat !== null && cached.lon !== null) {
+    return { lat: cached.lat, lon: cached.lon };
+  }
+
+  try {
+    const fetchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityString)}&limit=1`;
+    const res = await fetch(fetchUrl, {
+      headers: {
+        'User-Agent': 'DezLogApp/1.0 (dezlog@dezlog.com)'
+      }
+    });
+
+    if (!res.ok) {
+      console.error(`Nominatim error for ${cityString}: ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+      await coll.updateOne(
+        { city: cityString },
+        { $set: { lat, lon, updated_at: new Date() } },
+        { upsert: true }
+      );
+      return { lat, lon };
+    } else {
+      console.warn(`City not found by Nominatim: ${cityString}`);
+      return null;
+    }
+  } catch (err) {
+    console.error(`Geocoding error for ${cityString}:`, err);
+    return null;
+  }
+}
+
+export interface RouteResult {
+  distanceKm: number;
+  durationHours: number;
+}
+
+export async function calculateRouteDistance(db: Db, origin: string, dest: string): Promise<RouteResult | null> {
+  try {
+    const apiKey = process.env.ORS_API_KEY;
+    if (!apiKey) {
+      console.error('OpenRouteService API Key is not configured (ORS_API_KEY)');
+      return null;
+    }
+
+    const originCoords = await geocodeCity(db, origin);
+    const destCoords = await geocodeCity(db, dest);
+
+    if (!originCoords || !destCoords) {
+      return null;
+    }
+
+    const orsUrl = 'https://api.openrouteservice.org/v2/directions/driving-hgv';
+    const body = {
+      coordinates: [
+        [originCoords.lon, originCoords.lat],
+        [destCoords.lon, destCoords.lat]
+      ]
+    };
+
+    const res = await fetch(orsUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const errData = await res.text();
+      console.error("OpenRouteService errored in utils:", errData);
+      return null;
+    }
+
+    const routeData = await res.json();
+    if (!routeData.routes || routeData.routes.length === 0) {
+      return null;
+    }
+
+    const summary = routeData.routes[0].summary;
+    const distanceMeters = summary.distance;
+    const durationSeconds = summary.duration;
+
+    return {
+      distanceKm: parseFloat((distanceMeters / 1000).toFixed(2)),
+      durationHours: parseFloat((durationSeconds / 3600).toFixed(2))
+    };
+  } catch (err) {
+    console.error('Error calculating route distance in utils:', err);
+    return null;
+  }
 }

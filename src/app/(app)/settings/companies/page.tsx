@@ -9,6 +9,7 @@ import { Loader2, Info, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { BackButton } from '@/components/BackButton';
 import type { CompanyProfile } from '@/lib/types';
 import { authFetch } from '@/lib/api-client';
 
@@ -58,17 +59,12 @@ function CompanyProfilePageContent() {
   return (
     <main className="container mx-auto p-4 md:p-8">
       {!isFirstLogin ? (
-        <div className="flex items-center gap-4 mb-8">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => router.push('/settings')} 
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar
-          </Button>
-          <div className="h-4 w-px bg-border hidden md:block" />
-          <h1 className="text-xl font-bold text-primary whitespace-nowrap">Dados da Empresa</h1>
+        <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-primary">Dados da Empresa</h1>
+            <p className="text-muted-foreground">Gerencie as informações cadastrais e fiscais da sua empresa parceira.</p>
+          </div>
+          <BackButton href="/settings" className="mb-0 mt-2 text-muted-foreground hover:text-primary transition-colors" />
         </div>
       ) : (
         <>

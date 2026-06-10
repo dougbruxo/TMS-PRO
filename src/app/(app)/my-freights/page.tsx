@@ -9,7 +9,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, DollarSign, HandCoins, ChevronsUpDown, Check, Users } from 'lucide-react';
+import { Loader2, DollarSign, HandCoins, ChevronsUpDown, Check, Users, TrendingUp } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import type { DateRange } from 'react-day-picker';
 import { subDays, format, parse, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -93,7 +94,7 @@ export default function MyFreightsPage() {
   }, [selectedUserId, statusFilter]);
 
   const { filteredQuotes, totalNetProfit, totalSalesBonus } = useMemo(() => {
-    if (!dateRange.from || !dateRange.to || !selectedUserId) {
+    if (!dateRange.from || isNaN(dateRange.from.getTime()) || !dateRange.to || isNaN(dateRange.to.getTime()) || !selectedUserId) {
         return { filteredQuotes: [], totalNetProfit: 0, totalSalesBonus: 0 };
     }
     
@@ -110,7 +111,10 @@ export default function MyFreightsPage() {
         const effectiveQueryId = currentUser?.isSubClient ? currentUser?.parentId : selectedUserId;
         // Match by creatorId (who created) OR userId (who owns), since quotes created for clients have different userId
         const matchesUser = String(quote.creatorId) === effectiveQueryId || String(quote.userId) === effectiveQueryId;
-        const matchesBase = quote.status === statusFilter && matchesUser && quoteDate >= start && quoteDate <= end;
+        const matchesStatus = statusFilter === 'Finalizado' 
+            ? quote.status === 'Finalizado' 
+            : (quote.status !== 'Finalizado' && quote.status !== 'Recusada');
+        const matchesBase = matchesStatus && matchesUser && quoteDate >= start && quoteDate <= end;
         
         if (!matchesBase) return false;
         
@@ -189,19 +193,20 @@ export default function MyFreightsPage() {
   return (
     <main className="container mx-auto p-4 md:p-8">
       
-          <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-primary mb-2">Meus Fretes</h1>
-              <p className="text-muted-foreground max-w-2xl">
-                Acompanhe o resumo das suas cotações e o bônus de vendas por período.
-              </p>
-            </div>
-            {currentUser.role === 'admin' && (
-              <Button onClick={() => setIsManagePanelOpen(prev => !prev)}>
-                <Users className="mr-2 h-4 w-4"/> Gerenciar Cotações
-              </Button>
-            )}
-          </div>
+          <PageHeader
+            icon={<TrendingUp className="h-4 w-4" />}
+            badge="Desempenho de Vendas"
+            titlePrefix="Meus"
+            titleHighlight="Fretes"
+            description="Acompanhe o resumo das suas cotações e o bônus de vendas por período."
+            actions={
+              currentUser.role === 'admin' ? (
+                <Button onClick={() => setIsManagePanelOpen(prev => !prev)}>
+                  <Users className="mr-2 h-4 w-4"/> Gerenciar Cotações
+                </Button>
+              ) : undefined
+            }
+          />
 
           {isManagePanelOpen && (
             <Card className="mb-8 bg-muted/50">
@@ -279,13 +284,33 @@ export default function MyFreightsPage() {
               <div className="flex flex-col md:flex-row gap-4 pt-4">
                 <Input 
                   type="date" 
-                  value={dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}
-                  onChange={e => setDateRange(prev => ({...prev, from: parse(e.target.value, 'yyyy-MM-dd', new Date())}))}
+                  value={dateRange.from && !isNaN(dateRange.from.getTime()) ? format(dateRange.from, 'yyyy-MM-dd') : ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setDateRange(prev => ({ ...prev, from: undefined }));
+                      return;
+                    }
+                    const parsed = parse(val, 'yyyy-MM-dd', new Date());
+                    if (!isNaN(parsed.getTime())) {
+                      setDateRange(prev => ({ ...prev, from: parsed }));
+                    }
+                  }}
                 />
                 <Input 
                   type="date" 
-                  value={dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : ''}
-                  onChange={e => setDateRange(prev => ({...prev, to: parse(e.target.value, 'yyyy-MM-dd', new Date())}))}
+                  value={dateRange.to && !isNaN(dateRange.to.getTime()) ? format(dateRange.to, 'yyyy-MM-dd') : ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setDateRange(prev => ({ ...prev, to: undefined }));
+                      return;
+                    }
+                    const parsed = parse(val, 'yyyy-MM-dd', new Date());
+                    if (!isNaN(parsed.getTime())) {
+                      setDateRange(prev => ({ ...prev, to: parsed }));
+                    }
+                  }}
                 />
               </div>
             </CardHeader>
@@ -299,7 +324,12 @@ export default function MyFreightsPage() {
                             <CardTitle className="text-sm font-medium">Lucro Líquido Gerado</CardTitle>
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
-                        <CardContent><div className="text-2xl font-bold text-green-600">{formatCurrency(totalNetProfit)}</div><p className="text-xs text-muted-foreground">Período selecionado</p></CardContent>
+                        <CardContent>
+                          <div className={cn("text-2xl font-bold", totalNetProfit >= 0 ? "text-green-600" : "text-red-500")}>
+                            {formatCurrency(totalNetProfit)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Período selecionado</p>
+                        </CardContent>
                     </Card>
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -376,7 +406,9 @@ export default function MyFreightsPage() {
                           <TableCell>{quote.tomador}</TableCell>
                           {statusFilter === 'Finalizado' ? (
                             <>
-                                <TableCell className="font-semibold text-green-600">{formatCurrency(netProfit)}</TableCell>
+                                <TableCell className={cn("font-semibold", netProfit >= 0 ? "text-green-600" : "text-red-500")}>
+                                  {formatCurrency(netProfit)}
+                                </TableCell>
                                 <TableCell className="font-semibold text-blue-600">{formatCurrency(salesBonus)}</TableCell>
                                 <TableCell>{format(parseISO(quote.closedAt || quote.data), 'dd/MM/yyyy')}</TableCell>
                             </>

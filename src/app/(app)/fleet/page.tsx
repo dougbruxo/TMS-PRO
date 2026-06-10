@@ -5,8 +5,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { FleetManagement } from '@/components/FleetManagement';
-import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, Truck } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function ManageFleetPage() {
   const { user, loading: authLoading } = useAuth();
@@ -30,10 +30,15 @@ export default function ManageFleetPage() {
 
   return (
       <main className="container mx-auto p-4 md:p-8">
-        <Button variant="outline" onClick={() => router.push('/cadastros')} className="mb-8">
-            &larr; Voltar para Cadastros
-        </Button>
-        <h1 className="text-3xl font-bold text-primary mb-8">Gerenciar Frota</h1>
+        <PageHeader
+          icon={<Truck className="h-4 w-4" />}
+          badge="Registros Mestres"
+          titlePrefix="Gerenciar"
+          titleHighlight="Frota"
+          description="Cadastre e gerencie os veículos da sua frota e agregados."
+          backHref="/cadastros"
+          backLabel="Voltar para Cadastros"
+        />
         
         <FleetManagement />
 

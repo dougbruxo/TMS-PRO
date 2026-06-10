@@ -6,7 +6,7 @@
 import React from 'react';
 import fs from 'fs';
 import path from 'path';
-import { renderToBuffer } from '@react-pdf/renderer';
+import { renderToStream } from '@react-pdf/renderer';
 import { DamdfeDocument, type DamdfeData } from './damdfe-template';
 
 export interface MdfeDocumentoCompleto {
@@ -89,8 +89,50 @@ export async function generateDamdfePdf(doc: MdfeDocumentoCompleto): Promise<Buf
     qrCodeSrc,
   };
 
-  const buf = await renderToBuffer(React.createElement(DamdfeDocument, { data }));
-  return Buffer.from(buf);
+  // Sanitizar dados para garantir que não haja objetos complexos
+  const plainData = JSON.parse(JSON.stringify(data));
+
+  // Função recursiva para limpar propriedades de desenvolvimento do React
+  const sanitizeReactElement = (element: any): any => {
+    if (!element || typeof element !== 'object') return element;
+    if (Array.isArray(element)) return element.map(sanitizeReactElement);
+    const isElement = !!element.$$typeof || ('_owner' in element) || ('props' in element && 'type' in element);
+    if (isElement) {
+      const sanitizedProps = element.props ? sanitizeReactElement(element.props) : {};
+      if ('ref' in sanitizedProps) {
+        delete sanitizedProps.ref;
+      }
+      return {
+        $$typeof: Symbol.for('react.element'),
+        type: element.type,
+        key: element.key != null ? element.key : null,
+        ref: null,
+        props: sanitizedProps
+      };
+    }
+    const newObj: any = {};
+    for (const key in element) {
+      if (key === '_owner' || key === '_store' || key === '$$typeof') continue;
+      newObj[key] = sanitizeReactElement(element[key]);
+    }
+    return newObj;
+  };
+
+  try {
+    const element = DamdfeDocument({ data: plainData });
+    const sanitizedElement = sanitizeReactElement(element);
+
+    const stream = await renderToStream(sanitizedElement);
+    const chunks: any[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const pdfBuffer = Buffer.concat(chunks);
+    return Buffer.from(pdfBuffer);
+  } catch (renderError: any) {
+    console.error('Erro durante a renderização do PDF do DAMDFE:', renderError);
+    throw new Error(`Falha na renderização do motor PDF do DAMDFE: ${renderError.message}`);
+  }
 }
 
 // ── Logo resolver (local file → base64) ──

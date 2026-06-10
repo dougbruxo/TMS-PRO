@@ -17,6 +17,7 @@ export async function POST(request: Request) {
             remetenteId, destinatarioId, tomadorId,
             condutorId, veiculoId, nfeKey, valorProdutos, valorNota, peso,
             produtoPredominante, especieCarga, cstIbsCbs, aliquotaIbs, aliquotaCbs, tomadorIE,
+            remetenteIE, destinatarioIE,
             quantidadeVolumes, observacoes
         } = body;
         
@@ -129,6 +130,107 @@ export async function POST(request: Request) {
             return { ibge, uf: uf.toUpperCase() };
         };
 
+        // Auto-correção de codigo_ibge e inscricaoEstadual ausentes usando o XML original da NF-e (se disponível)
+        const extractIBGEFromXml = (xmlString: string | undefined | null, tag: 'emit' | 'dest'): string | null => {
+            if (!xmlString) return null;
+            const tagRegex = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'i');
+            const tagMatch = xmlString.match(tagRegex);
+            if (tagMatch) {
+                const innerContent = tagMatch[0];
+                const cMunRegex = /<cMun>\s*(\d+)\s*<\/cMun>/i;
+                const cMunMatch = innerContent.match(cMunRegex);
+                if (cMunMatch) {
+                    return cMunMatch[1];
+                }
+            }
+            return null;
+        };
+
+        const extractIEFromXml = (xmlString: string | undefined | null, tag: 'emit' | 'dest'): string | null => {
+            if (!xmlString) return null;
+            const tagRegex = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'i');
+            const tagMatch = xmlString.match(tagRegex);
+            if (tagMatch) {
+                const innerContent = tagMatch[0];
+                const ieRegex = /<IE>\s*([A-Za-z0-9]+)\s*<\/IE>/i;
+                const ieMatch = innerContent.match(ieRegex);
+                if (ieMatch) {
+                    return ieMatch[1];
+                }
+            }
+            return null;
+        };
+
+        if (quote && quote.nfeXml) {
+            if (remetente && (!remetente.codigo_ibge || !remetente.inscricaoEstadual || remetente.inscricaoEstadual === 'ISENTO')) {
+                const resolvedRemetenteIbge = extractIBGEFromXml(quote.nfeXml, 'emit');
+                const resolvedRemetenteIe = extractIEFromXml(quote.nfeXml, 'emit');
+                const updates: any = {};
+                if (resolvedRemetenteIbge && !remetente.codigo_ibge) {
+                    remetente.codigo_ibge = resolvedRemetenteIbge;
+                    updates.codigo_ibge = resolvedRemetenteIbge;
+                }
+                if (resolvedRemetenteIe && (!remetente.inscricaoEstadual || remetente.inscricaoEstadual === 'ISENTO')) {
+                    remetente.inscricaoEstadual = resolvedRemetenteIe;
+                    updates.inscricaoEstadual = resolvedRemetenteIe;
+                }
+                if (Object.keys(updates).length > 0) {
+                    db.collection('customers').updateOne(
+                        { _id: new ObjectId(remetenteId) },
+                        { $set: updates }
+                    ).catch((err: any) => console.error("Erro ao autocorrigir remetente:", err));
+                }
+            }
+            if (destinatario && (!destinatario.codigo_ibge || !destinatario.inscricaoEstadual || destinatario.inscricaoEstadual === 'ISENTO')) {
+                const resolvedDestinatarioIbge = extractIBGEFromXml(quote.nfeXml, 'dest');
+                const resolvedDestinatarioIe = extractIEFromXml(quote.nfeXml, 'dest');
+                const updates: any = {};
+                if (resolvedDestinatarioIbge && !destinatario.codigo_ibge) {
+                    destinatario.codigo_ibge = resolvedDestinatarioIbge;
+                    updates.codigo_ibge = resolvedDestinatarioIbge;
+                }
+                if (resolvedDestinatarioIe && (!destinatario.inscricaoEstadual || destinatario.inscricaoEstadual === 'ISENTO')) {
+                    destinatario.inscricaoEstadual = resolvedDestinatarioIe;
+                    updates.inscricaoEstadual = resolvedDestinatarioIe;
+                }
+                if (Object.keys(updates).length > 0) {
+                    db.collection('customers').updateOne(
+                        { _id: new ObjectId(destinatarioId) },
+                        { $set: updates }
+                    ).catch((err: any) => console.error("Erro ao autocorrigir destinatario:", err));
+                }
+            }
+            if (tomador && tomadorId && (!tomador.codigo_ibge || !tomador.inscricaoEstadual || tomador.inscricaoEstadual === 'ISENTO')) {
+                let resolvedTomadorIbge = null;
+                let resolvedTomadorIe = null;
+                if (tomadorId === remetenteId) {
+                    resolvedTomadorIbge = remetente.codigo_ibge;
+                    resolvedTomadorIe = remetente.inscricaoEstadual;
+                } else if (tomadorId === destinatarioId) {
+                    resolvedTomadorIbge = destinatario.codigo_ibge;
+                    resolvedTomadorIe = destinatario.inscricaoEstadual;
+                } else {
+                    resolvedTomadorIbge = extractIBGEFromXml(quote.nfeXml, 'emit') || extractIBGEFromXml(quote.nfeXml, 'dest');
+                    resolvedTomadorIe = extractIEFromXml(quote.nfeXml, 'emit') || extractIEFromXml(quote.nfeXml, 'dest');
+                }
+                const updates: any = {};
+                if (resolvedTomadorIbge && !tomador.codigo_ibge) {
+                    tomador.codigo_ibge = resolvedTomadorIbge;
+                    updates.codigo_ibge = resolvedTomadorIbge;
+                }
+                if (resolvedTomadorIe && (!tomador.inscricaoEstadual || tomador.inscricaoEstadual === 'ISENTO')) {
+                    tomador.inscricaoEstadual = resolvedTomadorIe;
+                    updates.inscricaoEstadual = resolvedTomadorIe;
+                }
+                if (Object.keys(updates).length > 0) {
+                    db.collection('customers').updateOne(
+                        { _id: new ObjectId(tomadorId) },
+                        { $set: updates }
+                    ).catch((err: any) => console.error("Erro ao autocorrigir tomador:", err));
+                }
+            }
+        }
+
         const emitenteEnder = validateIBGExUF(emitente.codigo_ibge, emitente.estado, "Endereço do Emitente");
         
         let origemCityName = emitente.cidade || "São Paulo";
@@ -137,7 +239,9 @@ export async function POST(request: Request) {
         if (quote && quote.cidadeOrigem) {
             origemCityName = quote.cidadeOrigem.split(',')[0].trim();
             origemUF = quote.cidadeOrigem.split(',')[1]?.trim() || origemUF;
-            origemIBGE = (quote as any).cidadeOrigem_ibge; 
+            origemIBGE = (quote as any).cidadeOrigem_ibge || remetente.codigo_ibge; 
+        } else {
+            origemIBGE = remetente.codigo_ibge || emitente.codigo_ibge;
         }
         const iniValidation = validateIBGExUF(origemIBGE, origemUF, "Município Genérico de Início da Prestação");
 
@@ -147,7 +251,9 @@ export async function POST(request: Request) {
         if (quote && quote.cidadeDestino) {
             destCityName = quote.cidadeDestino.split(',')[0].trim();
             destUF = quote.cidadeDestino.split(',')[1]?.trim() || destUF;
-            destIBGE = (quote as any).cidadeDestino_ibge;
+            destIBGE = (quote as any).cidadeDestino_ibge || destinatario.codigo_ibge;
+        } else {
+            destIBGE = destinatario.codigo_ibge;
         }
         const fimValidation = validateIBGExUF(destIBGE, destUF, "Município Genérico do Término da Prestação");
         
@@ -200,7 +306,7 @@ export async function POST(request: Request) {
 
             remetente: {
                 cnpj: remetente.cnpj,
-                inscricaoEstadual: tomadorId === remetenteId && tomadorIE ? getIE(tomadorIE) : getIE(remetente.inscricaoEstadual),
+                inscricaoEstadual: remetenteIE ? getIE(remetenteIE) : (tomadorId === remetenteId && tomadorIE ? getIE(tomadorIE) : getIE(remetente.inscricaoEstadual)),
                 razaoSocial: remetente.razaoSocial,
                 endereco: remetente.endereco || "Rua Principal",
                 cidade: remetente.cidade || "São Paulo",
@@ -212,7 +318,7 @@ export async function POST(request: Request) {
 
             destinatario: {
                 cnpj: destinatario.cnpj,
-                inscricaoEstadual: tomadorId === destinatarioId && tomadorIE ? getIE(tomadorIE) : getIE(destinatario.inscricaoEstadual),
+                inscricaoEstadual: destinatarioIE ? getIE(destinatarioIE) : (tomadorId === destinatarioId && tomadorIE ? getIE(tomadorIE) : getIE(destinatario.inscricaoEstadual)),
                 razaoSocial: destinatario.razaoSocial,
                 endereco: destinatario.endereco || "Rua Secundária",
                 cidade: destinatario.cidade || "São Paulo",
@@ -331,10 +437,27 @@ export async function POST(request: Request) {
             });
             
             // Atualizar pdfUrl com o ID real do documento
+            let docIdStr = '';
             if (insertResult.insertedId) {
+                docIdStr = insertResult.insertedId.toHexString();
                 await db.collection('issued_documents').updateOne(
                     { _id: insertResult.insertedId },
-                    { $set: { pdfUrl: `/api/sefaz/dacte?id=${insertResult.insertedId.toHexString()}` } }
+                    { $set: { pdfUrl: `/api/sefaz/dacte?id=${docIdStr}` } }
+                );
+            }
+
+            // Vincular à cotação se a emissão foi com sucesso
+            if (sefazResponse.success && quoteId && quoteId !== 'avulso') {
+                await db.collection('quotes').updateOne(
+                    { _id: new ObjectId(quoteId) },
+                    { 
+                        $set: { 
+                            cteId: docIdStr || null,
+                            cteChave: chaveAcesso,
+                            cteNumero: numeroCte,
+                            cteDataEmissao: new Date().toISOString()
+                        } 
+                    }
                 );
             }
             

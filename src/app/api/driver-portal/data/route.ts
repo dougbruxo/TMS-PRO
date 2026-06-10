@@ -92,13 +92,19 @@ export async function GET(request: Request) {
             .map(event => event.id)
     );
 
-    let pendingExpensesCount = 0;
+    const expenseConditions: any[] = [
+        { driverId: driverId },
+        { driverId: new ObjectId(driverId) }
+    ];
+
     if (eventIdsForDriver.length > 0) {
-        pendingExpensesCount = await db.collection('expenses').countDocuments({
-            operationalEventId: { $in: eventIdsForDriver },
-            status: { $in: ['pendente', 'parcial'] }
-        });
+        expenseConditions.push({ operationalEventId: { $in: eventIdsForDriver } });
     }
+
+    const pendingExpensesCount = await db.collection('expenses').countDocuments({
+        $or: expenseConditions,
+        status: { $in: ['pendente', 'parcial', 'atrasado'] }
+    });
 
     const data = {
         manifests: enrichedManifests,

@@ -76,12 +76,16 @@ export function NewChatDialog({ isOpen, onOpenChange, users, hubs, onStartNewCha
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Iniciar Nova Conversa</DialogTitle>
-          <DialogDescription>Selecione um hub de atendimento ou pesquise por um utilizador.</DialogDescription>
+          <DialogDescription>
+            {currentUser.role === 'admin' || currentUser.role === 'user'
+              ? "Pesquise por um cliente ou utilizador para iniciar um chat direto."
+              : "Selecione um hub de atendimento ou pesquise por um utilizador."}
+          </DialogDescription>
         </DialogHeader>
         <div className="relative pt-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar hub ou utilizador..."
+            placeholder={currentUser.role === 'admin' || currentUser.role === 'user' ? "Buscar utilizador..." : "Buscar hub ou utilizador..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -89,7 +93,7 @@ export function NewChatDialog({ isOpen, onOpenChange, users, hubs, onStartNewCha
         </div>
         <ScrollArea className="max-h-80 mt-2">
           <div className="space-y-2 py-4">
-            {(searchTerm.length === 0 || filteredHubs.length > 0) && (
+            {!(currentUser.role === 'admin' || currentUser.role === 'user') && (searchTerm.length === 0 || filteredHubs.length > 0) && (
               <>
                 <h4 className="px-2 text-xs font-semibold text-muted-foreground">HUBS DE ATENDIMENTO</h4>
                 {filteredHubs.map(hub => (

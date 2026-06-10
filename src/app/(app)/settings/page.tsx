@@ -5,9 +5,10 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Truck, Users, DollarSign, Map, BarChartBig, Megaphone, PiggyBank, DatabaseZap, Briefcase, Palette, BookUser, AlertTriangle, Tags, Building2, Printer, AlertOctagon, MessageSquare, Server, Package, ShieldCheck, Scale } from 'lucide-react';
+import { Loader2, Truck, Users, DollarSign, Map, BarChartBig, Megaphone, PiggyBank, DatabaseZap, Briefcase, Palette, BookUser, AlertTriangle, Tags, Building2, Printer, AlertOctagon, MessageSquare, Server, Package, ShieldCheck, Scale, Settings } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import { useToast } from '@/hooks/use-toast';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
 
 export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -191,22 +192,23 @@ export default function SettingsPage() {
 
   return (
       <main className="container mx-auto p-4 md:p-8">
-        <h1 className="text-3xl font-bold text-primary mb-2">Configurações Globais</h1>
-        <p className="text-muted-foreground mb-8">Gerencie as regras e dados principais do sistema.</p>
+        <PageHeader
+          icon={<Settings className="h-4 w-4" />}
+          badge="Administração do Sistema"
+          titlePrefix="Configurações"
+          titleHighlight="Globais"
+          description="Gerencie as regras e dados principais do sistema."
+        />
         
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {settingsCards.map((card) => (
-                <Link key={card.title} href={card.link} className="flex">
-                    <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                            {card.icon}
-                            <CardTitle>{card.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                            <CardDescription>{card.description}</CardDescription>
-                        </CardContent>
-                    </Card>
-                </Link>
+                <PremiumNavigationCard
+                    key={card.title}
+                    title={card.title}
+                    description={card.description}
+                    href={card.link}
+                    icon={card.icon}
+                />
             ))}
         </div>
       </main>

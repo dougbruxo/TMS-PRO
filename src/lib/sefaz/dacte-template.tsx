@@ -20,6 +20,9 @@ import {
   Font,
 } from '@react-pdf/renderer';
 
+// Desativa hifenização / quebra automática de palavras
+Font.registerHyphenationCallback((word) => [word]);
+
 // ============================================================
 // TIPOS
 // ============================================================
@@ -165,511 +168,517 @@ export interface DacteData {
 // ============================================================
 // ESTILOS
 // ============================================================
+const BORDER_STYLE = '1pt solid #000'; // Bordas mais fortes
+const BORDER_LIGHT = '0.5pt solid #000'; // Divisões internas
 
 const s = StyleSheet.create({
   page: {
     padding: 15,
-    fontSize: 7,
+    paddingBottom: 25,
+    fontSize: 8,
     fontFamily: 'Helvetica',
-    color: '#1a1a1a',
+    color: '#000', // Preto puro para impressão
   },
   
-  // --- Layout base ---
   row: { flexDirection: 'row' },
   col: { flexDirection: 'column' },
   flex1: { flex: 1 },
   flex2: { flex: 2 },
   flex3: { flex: 3 },
   
-  // --- Bordas e Caixas ---
   box: {
-    border: '0.5pt solid #333',
+    border: BORDER_STYLE,
     padding: 3,
-    minHeight: 20,
-  },
-  boxNoBorderTop: {
-    borderTop: 'none',
-  },
-  boxNoBorderLeft: {
-    borderLeft: 'none',
-  },
-  boxNoBorderRight: {
-    borderRight: 'none',
-  },
-  boxNoBorderBottom: {
-    borderBottom: 'none',
+    minHeight: 18,
+    justifyContent: 'flex-start',
   },
   
-  // --- Textos ---
+  boxNoBorderTop: { borderTop: 'none' },
+  boxNoBorderLeft: { borderLeft: 'none' },
+  
   label: {
-    fontSize: 5.5,
-    color: '#555',
-    marginBottom: 1,
+    fontSize: 5,
+    color: '#333',
+    fontFamily: 'Helvetica',
+    marginBottom: 2,
     textTransform: 'uppercase',
   },
+  
   value: {
     fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
+    color: '#000',
   },
+  
   valueLarge: {
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
-  },
-  valueXL: {
-    fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
-    textAlign: 'center',
-  },
-  textCenter: { textAlign: 'center' },
-  textRight: { textAlign: 'right' },
-  
-  // --- Cabeçalho ---
-  headerRow: {
-    flexDirection: 'row',
-    border: '1pt solid #333',
-    minHeight: 60,
-  },
-  headerEmitente: {
-    flex: 3,
-    padding: 6,
-    borderRight: '0.5pt solid #333',
-    justifyContent: 'center',
-  },
-  headerDacte: {
-    flex: 2,
-    padding: 4,
-    borderRight: '0.5pt solid #333',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerBarcode: {
-    flex: 3,
-    padding: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
+    color: '#000',
   },
   
-  // --- Seções ---
   sectionTitle: {
     fontSize: 6,
     fontFamily: 'Helvetica-Bold',
-    backgroundColor: '#eee',
-    padding: '2 4',
-    marginTop: 4,
-    border: '0.5pt solid #333',
+    backgroundColor: '#e4e4e4',
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    marginTop: 3,
+    border: BORDER_STYLE,
     borderBottom: 'none',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   
-  // --- Marca d'água ---
   watermark: {
     position: 'absolute',
     top: '40%',
-    left: '15%',
-    fontSize: 50,
+    left: '10%',
+    fontSize: 60,
     fontFamily: 'Helvetica-Bold',
-    color: '#ff000020',
-    transform: 'rotate(-30deg)',
+    color: '#ff000015',
+    transform: 'rotate(-35deg)',
+    zIndex: -1,
   },
   
-  // --- Canhoto ---
-  canhoto: {
-    border: '0.5pt dashed #999',
-    padding: 6,
-    marginBottom: 4,
+  canhotoContainer: {
+    border: BORDER_STYLE,
     flexDirection: 'row',
-    minHeight: 35,
-    alignItems: 'center',
-  },
-  canhotoDivider: {
-    width: 1,
-    backgroundColor: '#999',
-    marginHorizontal: 8,
-    height: '100%',
+    height: 55, 
+    alignItems: 'stretch',
   },
   
-  // --- Rodapé ---
-  footer: {
+  canhotoField: {
+    padding: 3,
+    borderRight: BORDER_STYLE,
+    justifyContent: 'center',
+  },
+  
+  canhotoCorte: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#666',
+    borderBottomStyle: 'dashed',
+    height: 10,
+    width: '100%',
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  
+  footerRow: {
     position: 'absolute',
-    bottom: 15,
+    bottom: 10,
     left: 15,
     right: 15,
-    fontSize: 5.5,
-    color: '#777',
-    textAlign: 'center',
-    borderTop: '0.5pt solid #ccc',
-    paddingTop: 3,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTop: BORDER_LIGHT,
+    paddingTop: 4,
+  },
+  footerText: {
+    fontSize: 5,
+    color: '#444',
+    fontFamily: 'Helvetica',
   },
 });
 
 // ============================================================
 // COMPONENTES AUXILIARES
 // ============================================================
-
 const LabelValue = ({ label, value, style }: { label: string; value?: string | number | null; style?: any }) => (
   <View style={[s.box, style]}>
     <Text style={s.label}>{label}</Text>
-    <Text style={s.value}>{value !== undefined && value !== null ? String(value) : '-'}</Text>
+    <Text style={s.value}>{value !== undefined && value !== null && value !== '' ? String(value) : '-'}</Text>
   </View>
 );
 
-const LabelValueInline = ({ label, value, style }: { label: string; value?: string | number | null; style?: any }) => (
-  <View style={[{ padding: 3 }, style]}>
-    <Text style={s.label}>{label}</Text>
-    <Text style={s.value}>{value !== undefined && value !== null ? String(value) : '-'}</Text>
-  </View>
-);
+function parseNfeKey(chave: string) {
+  const limpa = String(chave || '').replace(/\D/g, '');
+  if (limpa.length !== 44) return { tpDoc: 'NFE', cnpjEmit: limpa || '-', serieNumero: '-' };
+  const serie = limpa.substring(22, 25);
+  const numero = limpa.substring(25, 34).replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
+  return { tpDoc: 'NFE', cnpjEmit: limpa, serieNumero: `${serie} / ${numero}` };
+}
+
+function formatarQtdMedida(valor: string | number | null | undefined, unidadeSefaz: string, unidadePadrao: string) {
+  if (valor === undefined || valor === null || valor === '') return '-';
+  const strValor = String(valor).trim();
+  if (!unidadeSefaz) return `${strValor} ${unidadePadrao}`;
+  
+  const partes = unidadeSefaz.split('-');
+  if (partes.length === 2) {
+    const sigla = partes[1].trim();
+    // Retorna apenas a unidade, ex: "952,0000 KG" ou "2 UNIDADE"
+    return `${strValor} ${sigla}`;
+  }
+  
+  return `${strValor} ${unidadeSefaz}`;
+}
+
+function formatarNumeroCte(numero: string | number) {
+  if (numero === undefined || numero === null) return '-';
+  const clean = String(numero).replace(/\D/g, '').replace(/^0+/, '');
+  return clean ? clean.padStart(2, '0') : '00';
+}
 
 // ============================================================
-// COMPONENTE PRINCIPAL
+// TEMPLATE DACTE PRINCIPAL
 // ============================================================
-
 export const DacteDocument = ({ data }: { data: DacteData }) => {
   const isHomolog = data.ambiente === 'homologacao';
-  
-  // Formatar chave de acesso em grupos de 4
   const chaveFormatada = data.chaveAcesso.replace(/(.{4})/g, '$1 ').trim();
+  
+  const nfeChaves = data.nfeChaves || [];
+  const colEsquerda = nfeChaves.filter((_, idx) => idx % 2 === 0);
+  const colDireita = nfeChaves.filter((_, idx) => idx % 2 !== 0);
   
   return (
     <Document>
       <Page size="A4" style={s.page}>
+        {isHomolog && <Text style={s.watermark}>SEM VALOR FISCAL</Text>}
         
-        {/* Marca d'água de homologação */}
-        {isHomolog && (
-          <Text style={s.watermark}>SEM VALOR FISCAL</Text>
-        )}
-        
-        {/* ============================================================ */}
-        {/* CANHOTO */}
-        {/* ============================================================ */}
-        <View style={s.canhoto}>
-          <View style={[s.flex1, { paddingRight: 4 }]}>
-            <Text style={[s.label, { fontSize: 6, marginBottom: 2 }]}>
+        {/* 1. CANHOTO */}
+        <View style={s.canhotoContainer}>
+          <View style={[s.canhotoField, { width: 260, paddingVertical: 4 }]}>
+            <Text style={[s.label, { fontSize: 5, marginBottom: 5 }]}>
               DECLARO QUE RECEBI OS VOLUMES DESTE CONHECIMENTO EM PERFEITO ESTADO PELO QUE DOU POR CUMPRIDO O PRESENTE CONTRATO DE TRANSPORTE
             </Text>
-            <View style={[s.row, { marginTop: 4 }]}>
-              <View style={s.flex1}>
-                <Text style={s.label}>NOME</Text>
-                <View style={{ borderBottom: '0.5pt solid #999', marginTop: 8 }} />
-              </View>
-              <View style={{ width: 80, marginLeft: 6 }}>
-                <Text style={s.label}>RG/CPF</Text>
-                <View style={{ borderBottom: '0.5pt solid #999', marginTop: 8 }} />
-              </View>
-              <View style={{ width: 60, marginLeft: 6 }}>
-                <Text style={s.label}>DATA</Text>
-                <View style={{ borderBottom: '0.5pt solid #999', marginTop: 8 }} />
-              </View>
+            <View style={[s.row, { marginTop: 6, alignItems: 'center' }]}>
+              <Text style={[s.label, { width: 30, marginBottom: 0 }]}>NOME:</Text>
+              <View style={{ flex: 1, borderBottom: BORDER_LIGHT, height: 8 }} />
             </View>
-          </View>
-          <View style={s.canhotoDivider} />
-          <View style={{ width: 80, alignItems: 'center', justifyContent: 'space-between' }}>
-            <View>
-              <Text style={[s.label, { textAlign: 'center' }]}>ASSINATURA/CARIMBO</Text>
-              <View style={{ borderBottom: '0.5pt solid #999', width: '100%', marginTop: 14 }} />
+            <View style={[s.row, { marginTop: 6, alignItems: 'center' }]}>
+              <Text style={[s.label, { width: 30, marginBottom: 0 }]}>RG/CPF:</Text>
+              <View style={{ flex: 1, borderBottom: BORDER_LIGHT, height: 8 }} />
             </View>
-            <View style={{ marginTop: 4, alignItems: 'flex-end' }}>
-              <Text style={s.label}>CT-e</Text>
-              <Text style={[s.value, { fontSize: 9, textAlign: 'right' }]}>{`N°: ${data.numeroCte}`}</Text>
-              <Text style={s.label}>{`SÉRIE: ${data.serie}`}</Text>
-            </View>
-          </View>
-        </View>
-        
-        {/* Cabeçalho Principal */}
-        <View style={s.headerRow}>
-          {/* Dados do Emitente */}
-          <View style={s.headerEmitente}>
-            <Text style={[s.label, { marginBottom: 2, fontSize: 5 }]}>IDENTIFICAÇÃO DO EMITENTE</Text>
-            {!!data.emitente.logoUrl ? (
-              <Image src={data.emitente.logoUrl} style={{ maxHeight: 25, maxWidth: 80, marginBottom: 3, objectFit: 'contain', alignSelf: 'flex-start' }} />
-            ) : null}
-            <Text style={[s.valueLarge, { marginBottom: 1 }]}>
-              {data.emitente.razaoSocial}
-            </Text>
-            {!!data.emitente.nomeFantasia && (
-              <Text style={{ fontSize: 6.5, marginBottom: 1, color: '#555' }}>
-                {String(data.emitente.nomeFantasia)}
-              </Text>
-            )}
-            <Text style={{ fontSize: 6.5 }}>{data.emitente.endereco}</Text>
-            <Text style={{ fontSize: 6.5 }}>
-              {`${data.emitente.cidade}/${data.emitente.estado} - CEP: ${data.emitente.cep}`}
-            </Text>
-            <Text style={{ fontSize: 6.5 }}>
-              {`CNPJ: ${data.emitente.cnpj} | IE: ${data.emitente.inscricaoEstadual}`}
-            </Text>
-            {!!data.emitente.telefone && (
-              <Text style={{ fontSize: 6.5 }}>{`Fone: ${data.emitente.telefone}`}</Text>
-            )}
           </View>
           
-          {/* DACTE Identificação */}
-          <View style={s.headerDacte}>
-            <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', marginBottom: 2 }}>
-              DACTE
-            </Text>
-            <Text style={{ fontSize: 6, textAlign: 'center', marginBottom: 4 }}>
-              {`Documento Auxiliar do\nConhecimento de Transporte Eletrônico`}
-            </Text>
-            <Text style={s.label}>MODAL</Text>
-            <Text style={[s.value, s.textCenter]}>{data.modal || 'RODOVIÁRIO'}</Text>
+          <View style={[s.canhotoField, { flex: 2, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 8 }]}>
+            <Text style={[s.label, { textAlign: 'center' }]}>ASSINATURA / CARIMBO</Text>
           </View>
           
-          {/* Código de barras + Chave */}
-          <View style={s.headerBarcode}>
-            {!!data.barcodeSrc && (
-              <Image src={data.barcodeSrc} style={{ width: '90%', height: 30, marginBottom: 2 }} />
-            )}
-            <Text style={[s.label, s.textCenter]}>CHAVE DE ACESSO</Text>
-            <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Bold', textAlign: 'center', letterSpacing: 0.3 }}>
-              {chaveFormatada}
+          <View style={[s.canhotoField, { flex: 1.5, justifyContent: 'space-between', paddingTop: 2, paddingBottom: 2 }]}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={[s.label, { textAlign: 'center' }]}>CHEGADA DATA/HORA</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 6.5, textAlign: 'center' }}>___/___/___  ___:___</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={[s.label, { textAlign: 'center' }]}>SAÍDA DATA/HORA</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 6.5, textAlign: 'center' }}>___/___/___  ___:___</Text>
+            </View>
+          </View>
+          
+          <View style={[{ width: 75, alignItems: 'center', justifyContent: 'center', padding: 3 }]}>
+            <Text style={[s.valueLarge, { fontSize: 10 }]}>CT-e</Text>
+            <Text style={[s.value, { marginTop: 4 }]}>{`N° ${formatarNumeroCte(data.numeroCte)}`}</Text>
+            <Text style={[s.value, { marginTop: 2 }]}>{`SÉRIE: ${data.serie}`}</Text>
+          </View>
+        </View>
+        
+        <View style={s.canhotoCorte} />
+        
+        {/* 2. CABEÇALHO */}
+        <View style={[s.row, { border: BORDER_STYLE, height: 100 }]}>
+          {/* Emitente */}
+          <View style={[{ width: 260, paddingTop: 4, paddingBottom: 4, paddingRight: 8, paddingLeft: 8, borderRight: BORDER_STYLE }, s.col]}>
+            <Text style={[s.label, { fontSize: 5.5, marginBottom: 2 }]}>IDENTIFICAÇÃO DO EMITENTE</Text>
+            <Text style={{ fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#000', marginBottom: 6 }}>{data.emitente?.razaoSocial}</Text>
+            <View style={{ flex: 1, justifyContent: 'center', paddingLeft: 0, paddingRight: 0 }}>
+              <View style={[s.row, { alignItems: 'flex-start', gap: 12 }]}>
+                {!!data.emitente?.logoUrl && (
+                  <Image src={data.emitente.logoUrl} style={{ maxHeight: 37, maxWidth: 64, objectFit: 'contain' }} />
+                )}
+                <View style={[s.col, { flex: 1, justifyContent: 'flex-start' }]}>
+                  <Text style={{ fontSize: 7.2, fontFamily: 'Helvetica' }}>{data.emitente?.endereco}</Text>
+                  <Text style={{ fontSize: 7.2, marginTop: 1 }}>{`${data.emitente?.cidade}/${data.emitente?.estado} - CEP: ${data.emitente?.cep}`}</Text>
+                  {!!data.emitente?.telefone && (
+                    <Text style={{ fontSize: 7.2, marginTop: 1 }}>{`FONE: ${data.emitente.telefone}`}</Text>
+                  )}
+                  <Text style={{ fontSize: 7.2, fontFamily: 'Helvetica-Bold', marginTop: 1.5 }}>{`CNPJ: ${data.emitente?.cnpj}`}</Text>
+                  <Text style={{ fontSize: 7.2, fontFamily: 'Helvetica-Bold', marginTop: 1 }}>{`INSC. ESTADUAL: ${data.emitente?.inscricaoEstadual}`}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* DACTE Info */}
+          <View style={[{ flex: 1, borderRight: BORDER_STYLE }, s.col]}>
+            <View style={[{ padding: 3, alignItems: 'center', borderBottom: BORDER_STYLE, backgroundColor: '#f9f9f9' }, s.col]}>
+              <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', letterSpacing: 1 }}>DACTE</Text>
+              <Text style={{ fontSize: 4.5, textAlign: 'center', color: '#333', marginTop: 1 }}>Documento Auxiliar do Conhecimento de Transporte Eletrônico</Text>
+            </View>
+            <View style={[s.row, { borderBottom: BORDER_STYLE, height: 22 }]}>
+              <View style={[{ flex: 1, borderRight: BORDER_LIGHT, alignItems: 'center', justifyContent: 'center' }]}><Text style={s.label}>MODELO</Text><Text style={s.value}>{data.modelo}</Text></View>
+              <View style={[{ flex: 1, borderRight: BORDER_LIGHT, alignItems: 'center', justifyContent: 'center' }]}><Text style={s.label}>SÉRIE</Text><Text style={s.value}>{data.serie}</Text></View>
+              <View style={[{ flex: 1.5, borderRight: BORDER_LIGHT, alignItems: 'center', justifyContent: 'center' }]}><Text style={s.label}>NÚMERO</Text><Text style={s.value}>{formatarNumeroCte(data.numeroCte)}</Text></View>
+              <View style={[{ flex: 1, borderRight: BORDER_LIGHT, alignItems: 'center', justifyContent: 'center' }]}><Text style={s.label}>FOLHA</Text><Text style={s.value}>1/1</Text></View>
+              <View style={[{ flex: 3.2, alignItems: 'center', justifyContent: 'center' }]}><Text style={s.label}>DATA/HORA EMISSÃO</Text><Text style={[s.value, { fontSize: 7 }]}>{data.dataEmissao}</Text></View>
+            </View>
+            <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 1 }]}>
+              {!!data.barcodeSrc && <Image src={data.barcodeSrc} style={{ width: '98%', height: 40, objectFit: 'fill', marginTop: 4, marginBottom: 4 }} />}
+            </View>
+          </View>
+
+          {/* Modal / QR Code */}
+          <View style={[{ width: 75 }, s.col]}>
+            <View style={[{ padding: 3, alignItems: 'center', borderBottom: BORDER_STYLE, height: 26, justifyContent: 'center' }]}>
+              <Text style={s.label}>MODAL</Text>
+              <Text style={[s.valueLarge, { fontSize: 8 }]}>{data.modal}</Text>
+            </View>
+            <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 4 }]}>
+              {!!data.qrCodeSrc ? (
+                <Image src={data.qrCodeSrc} style={{ width: 60, height: 60 }} />
+              ) : (
+                <Text style={{ fontSize: 5, color: '#ccc' }}>Sem QR Code</Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* 3. DADOS PRINCIPAIS DO CT-E */}
+        <View style={s.row}>
+          {LabelValue({ label: "TIPO DO CT-E", value: data.tipoCte, style: [{ width: '25%' }, s.boxNoBorderTop] })}
+          {LabelValue({ label: "TIPO DO SERVIÇO", value: data.tipoServico, style: [{ width: '25%' }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          <View style={[s.box, s.boxNoBorderTop, s.boxNoBorderLeft, { width: '50%' }]}>
+            <Text style={s.label}>CHAVE DE ACESSO</Text>
+            <Text style={[s.valueLarge, { fontSize: 8.5, letterSpacing: 0.2, marginTop: 1 }]}>{chaveFormatada}</Text>
+          </View>
+        </View>
+
+        <View style={s.row}>
+          {LabelValue({ label: "TOMADOR DO SERVIÇO", value: data.tomador?.tipo, style: [{ width: '25%' }, s.boxNoBorderTop] })}
+          <View style={[s.box, s.boxNoBorderTop, s.boxNoBorderLeft, { width: '25%' }]}>
+            <Text style={s.label}>INDICADOR DE CT-E GLOBALIZADO</Text>
+            <Text style={s.value}>{data.globalizado ? '[X] SIM   [ ] NÃO' : '[ ] SIM   [X] NÃO'}</Text>
+          </View>
+          <View style={[s.box, s.boxNoBorderTop, s.boxNoBorderLeft, { width: '50%', justifyContent: 'center', backgroundColor: '#f9f9f9' }]}>
+            <Text style={{ fontSize: 5, color: '#333', textAlign: 'center' }}>
+              Consulta de autenticidade no portal nacional do CT-e, no site da Sefaz Autorizadora ou em http://www.cte.fazenda.gov.br/portal
             </Text>
           </View>
         </View>
-        
-        {/* Tipo do CT-e + Nº + Série + Data + Protocolo */}
+
         <View style={s.row}>
-          {LabelValue({ label: "TIPO DO CT-E", value: data.tipoCte, style: [s.flex1, s.boxNoBorderTop] })}
-          {LabelValue({ label: "TIPO DO SERVIÇO", value: data.tipoServico, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "CFOP", value: data.cfop, style: [{ width: 50 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "NÚMERO", value: data.numeroCte, style: [{ width: 70 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "SÉRIE", value: data.serie, style: [{ width: 35 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "DATA EMISSÃO", value: data.dataEmissao, style: [{ width: 70 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          {LabelValue({ label: "CFOP - NATUREZA DA PRESTAÇÃO", value: `${data.cfop} - ${data.naturezaOperacao}`, style: [{ width: '50%' }, s.boxNoBorderTop] })}
+          {LabelValue({ label: "PROTOCOLO DE AUTORIZAÇÃO DE USO", value: data.protocolo ? `${data.protocolo} - ${data.dataAutorizacao || ''}` : 'PENDENTE', style: [{ width: '50%' }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
         </View>
-        
-        {/* Protocolo */}
+
         <View style={s.row}>
-          {LabelValue({ label: "PROTOCOLO DE AUTORIZAÇÃO", value: data.protocolo || 'PENDENTE', style: [s.flex1, s.boxNoBorderTop] })}
-          {LabelValue({ label: "DATA AUTORIZAÇÃO", value: data.dataAutorizacao || '-', style: [{ width: 100 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {!!data.qrCodeSrc && (
-            <View style={[s.box, s.boxNoBorderTop, s.boxNoBorderLeft, { width: 60, alignItems: 'center', justifyContent: 'center' }]}>
-              <Image src={data.qrCodeSrc} style={{ width: 45, height: 45 }} />
+          {LabelValue({ label: "ORIGEM DA PRESTAÇÃO", value: `${data.cidadeOrigem} / ${data.ufOrigem}`, style: [{ width: '50%' }, s.boxNoBorderTop] })}
+          {LabelValue({ label: "DESTINO DA PRESTAÇÃO", value: `${data.cidadeDestino} / ${data.ufDestino}`, style: [{ width: '50%' }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+        </View>
+
+        {/* 4. ATORES (Cards Complexos) */}
+        <View style={s.row}>
+          {/* Remetente */}
+          <View style={[{ flex: 1, borderBottom: BORDER_STYLE, borderLeft: BORDER_STYLE, borderRight: BORDER_LIGHT, padding: 4 }, s.col]}>
+            <Text style={[s.label, { fontSize: 6, marginBottom: 2, color: '#000' }]}>REMETENTE</Text>
+            <Text style={s.value} numberOfLines={1}>{data.remetente?.razaoSocial}</Text>
+            <Text style={{ fontSize: 6, marginTop: 2 }}>{`Endereço: ${data.remetente?.endereco}`}</Text>
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`Município: ${data.remetente?.cidade}/${data.remetente?.estado}`}</Text>
+              <Text style={{ fontSize: 6 }}>{`CEP: ${data.remetente?.cep}`}</Text>
             </View>
-          )}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* PRESTAÇÃO DO SERVIÇO */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Prestação do Serviço de Transporte</Text>
-        
-        <View style={s.row}>
-          {LabelValue({ label: "INÍCIO DA PRESTAÇÃO", value: `${data.cidadeOrigem} / ${data.ufOrigem}`, style: s.flex1 })}
-          {LabelValue({ label: "TÉRMINO DA PRESTAÇÃO", value: `${data.cidadeDestino} / ${data.ufDestino}`, style: [s.flex1, s.boxNoBorderLeft] })}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* REMETENTE */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Remetente</Text>
-        
-        <View style={s.row}>
-          {LabelValue({ label: "NOME / RAZÃO SOCIAL", value: data.remetente.razaoSocial, style: s.flex3 })}
-          {LabelValue({ label: "CNPJ/CPF", value: data.remetente.cnpj, style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "INSCRIÇÃO ESTADUAL", value: data.remetente.inscricaoEstadual || 'ISENTO', style: [s.flex1, s.boxNoBorderLeft] })}
-        </View>
-        <View style={s.row}>
-          {LabelValue({ label: "ENDEREÇO", value: data.remetente.endereco, style: [s.flex3, s.boxNoBorderTop] })}
-          {LabelValue({ label: "MUNICÍPIO", value: data.remetente.cidade, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "UF", value: data.remetente.estado, style: [{ width: 30 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "CEP", value: data.remetente.cep, style: [{ width: 60 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "FONE", value: data.remetente.telefone || '-', style: [{ width: 80 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* DESTINATÁRIO */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Destinatário</Text>
-        
-        <View style={s.row}>
-          {LabelValue({ label: "NOME / RAZÃO SOCIAL", value: data.destinatario.razaoSocial, style: s.flex3 })}
-          {LabelValue({ label: "CNPJ/CPF", value: data.destinatario.cnpj, style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "INSCRIÇÃO ESTADUAL", value: data.destinatario.inscricaoEstadual || 'ISENTO', style: [s.flex1, s.boxNoBorderLeft] })}
-        </View>
-        <View style={s.row}>
-          {LabelValue({ label: "ENDEREÇO", value: data.destinatario.endereco, style: [s.flex3, s.boxNoBorderTop] })}
-          {LabelValue({ label: "MUNICÍPIO", value: data.destinatario.cidade, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "UF", value: data.destinatario.estado, style: [{ width: 30 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "CEP", value: data.destinatario.cep, style: [{ width: 60 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "FONE", value: data.destinatario.telefone || '-', style: [{ width: 80 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-        </View>
-        {/* ============================================================ */}
-        {/* EXPEDIDOR / RECEBEDOR */}
-        {/* ============================================================ */}
-        <View style={s.row}>
-          <View style={s.flex1}>
-            <Text style={s.sectionTitle}>Expedidor</Text>
-            <View style={s.row}>
-              {LabelValue({ label: "NOME / RAZÃO SOCIAL", value: data.expedidor?.razaoSocial || '-', style: s.flex2 })}
-              {LabelValue({ label: "CNPJ/CPF", value: data.expedidor?.cnpj || '-', style: [s.flex1, s.boxNoBorderLeft] })}
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`CNPJ/CPF: ${data.remetente?.cnpj}`}</Text>
+              <Text style={{ fontSize: 6 }}>{`Insc. Est.: ${data.remetente?.inscricaoEstadual || 'ISENTO'}`}</Text>
             </View>
-            <View style={s.row}>
-              {LabelValue({ label: "ENDEREÇO", value: data.expedidor?.endereco || '-', style: [s.flex2, s.boxNoBorderTop] })}
-              {LabelValue({ label: "MUNICÍPIO", value: data.expedidor?.cidade || '-', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-            </View>
-            <View style={s.row}>
-              {LabelValue({ label: "UF", value: data.expedidor?.estado || '-', style: [{ width: 30 }, s.boxNoBorderTop] })}
-              {LabelValue({ label: "CEP", value: data.expedidor?.cep || '-', style: [{ width: 60 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-              {LabelValue({ label: "PAÍS", value: data.expedidor?.pais || 'BRASIL', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-              {LabelValue({ label: "FONE", value: data.expedidor?.telefone || '-', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`País: ${data.remetente?.pais || 'BRASIL'}`}</Text>
+              {!!data.remetente?.telefone && (
+                <Text style={{ fontSize: 6 }}>{`Fone: ${data.remetente.telefone}`}</Text>
+              )}
             </View>
           </View>
-          <View style={[s.flex1, { borderLeft: '0.5pt solid #333' }]}>
-            <Text style={s.sectionTitle}>Recebedor</Text>
-            <View style={s.row}>
-              {LabelValue({ label: "NOME / RAZÃO SOCIAL", value: data.recebedor?.razaoSocial || '-', style: s.flex2 })}
-              {LabelValue({ label: "CNPJ/CPF", value: data.recebedor?.cnpj || '-', style: [s.flex1, s.boxNoBorderLeft] })}
+          
+          {/* Destinatário */}
+          <View style={[{ flex: 1, borderBottom: BORDER_STYLE, borderRight: BORDER_STYLE, padding: 4 }, s.col]}>
+            <Text style={[s.label, { fontSize: 6, marginBottom: 2, color: '#000' }]}>DESTINATÁRIO</Text>
+            <Text style={s.value} numberOfLines={1}>{data.destinatario?.razaoSocial}</Text>
+            <Text style={{ fontSize: 6, marginTop: 2 }}>{`Endereço: ${data.destinatario?.endereco}`}</Text>
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`Município: ${data.destinatario?.cidade}/${data.destinatario?.estado}`}</Text>
+              <Text style={{ fontSize: 6 }}>{`CEP: ${data.destinatario?.cep}`}</Text>
             </View>
-            <View style={s.row}>
-              {LabelValue({ label: "ENDEREÇO", value: data.recebedor?.endereco || '-', style: [s.flex2, s.boxNoBorderTop] })}
-              {LabelValue({ label: "MUNICÍPIO", value: data.recebedor?.cidade || '-', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`CNPJ/CPF: ${data.destinatario?.cnpj}`}</Text>
+              <Text style={{ fontSize: 6 }}>{`Insc. Est.: ${data.destinatario?.inscricaoEstadual || 'ISENTO'}`}</Text>
             </View>
-            <View style={s.row}>
-              {LabelValue({ label: "UF", value: data.recebedor?.estado || '-', style: [{ width: 30 }, s.boxNoBorderTop] })}
-              {LabelValue({ label: "CEP", value: data.recebedor?.cep || '-', style: [{ width: 60 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-              {LabelValue({ label: "PAÍS", value: data.recebedor?.pais || 'BRASIL', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-              {LabelValue({ label: "FONE", value: data.recebedor?.telefone || '-', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`País: ${data.destinatario?.pais || 'BRASIL'}`}</Text>
+              {!!data.destinatario?.telefone && (
+                <Text style={{ fontSize: 6 }}>{`Fone: ${data.destinatario.telefone}`}</Text>
+              )}
             </View>
           </View>
         </View>
 
-        {/* ============================================================ */}
-        {/* TOMADOR DO SERVIÇO */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Tomador do Serviço</Text>
-        
         <View style={s.row}>
-          {LabelValue({ label: "NOME / RAZÃO SOCIAL", value: data.tomador.razaoSocial, style: s.flex2 })}
-          {LabelValue({ label: "MUNICÍPIO", value: data.tomador.cidade, style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "CEP", value: data.tomador.cep, style: [{ width: 60 }, s.boxNoBorderLeft] })}
-        </View>
-        <View style={s.row}>
-          {LabelValue({ label: "ENDEREÇO", value: data.tomador.endereco, style: [s.flex3, s.boxNoBorderTop] })}
-          {LabelValue({ label: "PAÍS", value: data.tomador.pais || 'BRASIL', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "FONE", value: data.tomador.telefone || '-', style: [{ width: 80 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-        </View>
-        <View style={s.row}>
-          {LabelValue({ label: "CNPJ/CPF", value: data.tomador.cnpj, style: [s.flex1, s.boxNoBorderTop] })}
-          {LabelValue({ label: "INSCRIÇÃO ESTADUAL", value: data.tomador.inscricaoEstadual || 'ISENTO', style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "INDICADOR DO CT-E GLOBALIZADO", value: data.globalizado ? 'SIM' : 'NÃO', style: [{ width: 100 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* PRODUTO PREDOMINANTE + VALORES */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Produto Predominante / Valores</Text>
-        <View style={s.row}>
-          {LabelValue({ label: "PRODUTO PREDOMINANTE", value: data.produtoPredominante, style: s.flex2 })}
-          {LabelValue({ label: "OUTRAS CARACTERÍSTICAS DA CARGA", value: data.outrasCaracteristicas || 'GRANEL', style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "VALOR TOTAL DA MERCADORIA", value: `R$ ${data.valorCarga}`, style: [s.flex1, s.boxNoBorderLeft] })}
+          {/* Expedidor */}
+          <View style={[{ flex: 1, borderBottom: BORDER_STYLE, borderLeft: BORDER_STYLE, borderRight: BORDER_LIGHT, padding: 4 }, s.col]}>
+            <Text style={[s.label, { fontSize: 5, color: '#000' }]}>EXPEDIDOR</Text>
+            <Text style={s.value} numberOfLines={1}>{data.expedidor?.razaoSocial || '-'}</Text>
+            <Text style={{ fontSize: 6, marginTop: 1 }}>{`Endereço: ${data.expedidor?.endereco || '-'}`}</Text>
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`Município: ${data.expedidor?.cidade || '-'}/${data.expedidor?.estado || '-'}`}</Text>
+              <Text style={{ fontSize: 6 }}>{`CNPJ/CPF: ${data.expedidor?.cnpj || '-'}`}</Text>
+            </View>
+          </View>
+          
+          {/* Recebedor */}
+          <View style={[{ flex: 1, borderBottom: BORDER_STYLE, borderRight: BORDER_STYLE, padding: 4 }, s.col]}>
+            <Text style={[s.label, { fontSize: 5, color: '#000' }]}>RECEBEDOR</Text>
+            <Text style={s.value} numberOfLines={1}>{data.recebedor?.razaoSocial || '-'}</Text>
+            <Text style={{ fontSize: 6, marginTop: 1 }}>{`Endereço: ${data.recebedor?.endereco || '-'}`}</Text>
+            <View style={[s.row, { justifyContent: 'space-between', marginTop: 1 }]}>
+              <Text style={{ fontSize: 6 }}>{`Município: ${data.recebedor?.cidade || '-'}/${data.recebedor?.estado || '-'}`}</Text>
+              <Text style={{ fontSize: 6 }}>{`CNPJ/CPF: ${data.recebedor?.cnpj || '-'}`}</Text>
+            </View>
+          </View>
         </View>
 
-        {/* ============================================================ */}
-        {/* ============================================================ */}
-        {/* COMPONENTES DO VALOR DA PRESTAÇÃO (LAYOUT COMPACTO) */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Componentes do Valor da Prestação do Serviço</Text>
-        <View style={[s.box, { flexDirection: 'row', minHeight: 25 }]}>
-          {/* Grade de Componentes */}
-          <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', padding: 2 }}>
-            {(data.componentesValor && data.componentesValor.length > 0
-              ? data.componentesValor
-              : [{ nome: 'FRETE', valor: data.valorServico }]
-            ).map((c, i) => (
-              <View key={i} style={{ width: '25%', padding: 1, marginBottom: 2 }}>
-                <Text style={[s.label, { fontSize: 4.5 }]}>{c.nome}</Text>
-                <Text style={[s.value, { fontSize: 7 }]}>{`R$ ${c.valor}`}</Text>
+        <View style={[s.box, s.boxNoBorderTop, s.col, { padding: 4 }]}>
+          <View style={[s.row, { alignItems: 'center' }]}>
+            <Text style={[s.label, { marginRight: 4, marginBottom: 0 }]}>TOMADOR:</Text>
+            <Text style={[s.value, { flex: 1 }]}>{data.tomador?.razaoSocial}</Text>
+            <Text style={[s.label, { marginLeft: 10, marginRight: 4, marginBottom: 0 }]}>MUNICÍPIO:</Text>
+            <Text style={s.value}>{`${data.tomador?.cidade || '-'}/${data.tomador?.estado || '-'}`}</Text>
+            <Text style={[s.label, { marginLeft: 10, marginRight: 4, marginBottom: 0 }]}>CEP:</Text>
+            <Text style={s.value}>{data.tomador?.cep || '-'}</Text>
+          </View>
+          <View style={[s.row, { marginTop: 3, alignItems: 'center' }]}>
+            <Text style={[s.label, { marginRight: 4, marginBottom: 0 }]}>ENDEREÇO:</Text>
+            <Text style={{ fontSize: 6.5, flex: 1, fontFamily: 'Helvetica' }} numberOfLines={1}>{data.tomador?.endereco || '-'}</Text>
+            <Text style={[s.label, { marginLeft: 10, marginRight: 4, marginBottom: 0 }]}>INSC. ESTADUAL:</Text>
+            <Text style={s.value}>{data.tomador?.inscricaoEstadual || 'ISENTO'}</Text>
+            <Text style={[s.label, { marginLeft: 10, marginRight: 4, marginBottom: 0 }]}>CPF/CNPJ:</Text>
+            <Text style={s.value}>{data.tomador?.cnpj}</Text>
+            <Text style={[s.label, { marginLeft: 10, marginRight: 4, marginBottom: 0 }]}>PAÍS:</Text>
+            <Text style={s.value}>{data.tomador?.pais || 'BRASIL'}</Text>
+          </View>
+        </View>
+
+        {/* 5. CARGA */}
+        <Text style={s.sectionTitle}>PRODUTO PREDOMINANTE E CARGA</Text>
+        <View style={s.row}>
+          {LabelValue({ label: "PRODUTO PREDOMINANTE", value: data.produtoPredominante, style: [s.flex1, s.boxNoBorderTop] })}
+        </View>
+
+        <View style={s.row}>
+          {LabelValue({ label: "OUTRAS CARACTERÍSTICAS", value: data.outrasCaracteristicas || 'GRANEL', style: [s.flex1, s.boxNoBorderTop] })}
+          {LabelValue({ label: "QTD/UN - PESO BRUTO", value: formatarQtdMedida(data.peso, data.especieCarga || '01-KG', 'KG'), style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          {LabelValue({ label: "QTD/UN - VOLUMES", value: formatarQtdMedida(data.quantidadeVolumes, '03-UNIDADE', 'UN'), style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          {LabelValue({ label: "VALOR DA CARGA", value: `R$ ${data.valorCarga}`, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+        </View>
+
+        {/* 6. COMPONENTES E TOTAIS */}
+        <Text style={s.sectionTitle}>COMPONENTES DO VALOR DA PRESTAÇÃO</Text>
+        <View style={[s.box, s.boxNoBorderTop, { flexDirection: 'row', minHeight: 28, padding: 0 }]}>
+          
+          {/* Colunas de Componentes */}
+          <View style={{ flex: 1, flexDirection: 'row' }}>
+            {[0, 1, 2, 3].map((idx) => {
+              const c = data.componentesValor?.[idx];
+              const nomeExibido = c ? c.nome : (idx === 0 ? "FRETE" : "");
+              const valorExibido = c ? c.valor : (idx === 0 ? `R$ ${data.valorServico}` : "");
+              return (
+                <View key={idx} style={[{ flex: 1, borderRight: BORDER_LIGHT }, s.col]}>
+                  <View style={[s.row, { borderBottom: BORDER_LIGHT, padding: 2, backgroundColor: '#f5f5f5' }]}>
+                    <Text style={[s.label, { flex: 1, marginBottom: 0 }]}>NOME</Text>
+                    <Text style={[s.label, { marginBottom: 0, width: 40, textAlign: 'right' }]}>VALOR</Text>
+                  </View>
+                  <View style={[s.row, { flex: 1, padding: 3, alignItems: 'center' }]}>
+                    <Text style={[s.value, { flex: 1, fontSize: 6.5 }]} numberOfLines={1}>{nomeExibido}</Text>
+                    <Text style={[s.value, { width: 45, textAlign: 'right', fontSize: 6.5 }]}>{valorExibido}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+          
+          {/* Bloco de Totais (Lado a Lado) */}
+          <View style={{ width: 170, flexDirection: 'row', backgroundColor: '#f0f0f0' }}>
+            
+            {/* VALOR TOTAL DO SERVIÇO */}
+            <View style={{ flex: 1, borderRight: BORDER_LIGHT, padding: 4, justifyContent: 'center' }}>
+              <Text style={[s.label, { textAlign: 'center', fontSize: 5, marginBottom: 2 }]}>VALOR TOTAL DO SERVIÇO</Text>
+              <Text style={[s.valueLarge, { textAlign: 'center' }]}>{`R$ ${data.valorServico}`}</Text>
+            </View>
+
+            {/* VALOR A RECEBER */}
+            <View style={{ flex: 1, padding: 4, justifyContent: 'center' }}>
+              <Text style={[s.label, { textAlign: 'center', fontSize: 5, marginBottom: 2 }]}>VALOR A RECEBER</Text>
+              <Text style={[s.valueLarge, { textAlign: 'center' }]}>{`R$ ${data.valorReceber}`}</Text>
+            </View>
+
+          </View>
+        </View>
+
+        {/* 7. IMPOSTOS */}
+        <Text style={s.sectionTitle}>INFORMAÇÕES RELATIVAS AO IMPOSTO</Text>
+        <View style={s.row}>
+          {LabelValue({ label: "SITUAÇÃO TRIBUTÁRIA", value: data.situacaoTributaria, style: [s.flex2, s.boxNoBorderTop] })}
+          {LabelValue({ label: "BASE DE CÁLCULO", value: `R$ ${data.icmsBase}`, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          {LabelValue({ label: "ALÍQUOTA ICMS", value: `${data.icmsAliquota}%`, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          {LabelValue({ label: "VALOR ICMS", value: `R$ ${data.icmsValor}`, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+          {LabelValue({ label: "% RED. BC", value: '0,00', style: [{ width: 50 }, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+        </View>
+
+        {/* 8. NFE VINCULADAS */}
+        <Text style={s.sectionTitle}>DOCUMENTOS ORIGINÁRIOS (NF-E)</Text>
+        <View style={[s.row, s.box, s.boxNoBorderTop, { padding: 0 }]}>
+          {[colEsquerda, colDireita].map((coluna, blockIdx) => (
+            <View key={blockIdx} style={{ flex: 1, borderRight: blockIdx === 0 ? BORDER_LIGHT : 'none' }}>
+              <View style={[s.row, { borderBottom: BORDER_LIGHT, backgroundColor: '#f5f5f5', padding: 2 }]}>
+                <Text style={[s.label, { width: 35, marginBottom: 0 }]}>TP DOC.</Text>
+                <Text style={[s.label, { flex: 1, marginBottom: 0 }]}>CNPJ/CPF EMITENTE</Text>
+                <Text style={[s.label, { width: 85, marginBottom: 0 }]}>SÉRIE/NRO DOC.</Text>
               </View>
-            ))}
-          </View>
-          {/* Totais do Serviço */}
-          <View style={{ width: 100, borderLeft: '0.5pt solid #333', backgroundColor: '#f9f9f9', padding: 2 }}>
-            <View style={{ marginBottom: 3 }}>
-              <Text style={[s.label, { textAlign: 'right', fontSize: 5 }]}>VALOR TOTAL DO SERVIÇO</Text>
-              <Text style={[s.value, { textAlign: 'right', fontSize: 9, fontFamily: 'Helvetica-Bold' }]}>{`R$ ${data.valorServico}`}</Text>
+              {coluna.map((chave, idx) => {
+                const info = parseNfeKey(chave);
+                return (
+                  <View key={idx} style={[s.row, { borderBottom: idx < coluna.length - 1 ? '0.5pt solid #eee' : 'none', padding: 2, alignItems: 'center' }]}>
+                    <Text style={{ fontSize: 6, width: 35 }}>{info.tpDoc}</Text>
+                    <Text style={{ fontSize: 6, flex: 1, fontFamily: 'Helvetica-Bold' }}>{info.cnpjEmit}</Text>
+                    <Text style={{ fontSize: 6, width: 85 }}>{info.serieNumero}</Text>
+                  </View>
+                );
+              })}
+              {coluna.length === 0 && <View style={{ height: 12 }} />}
             </View>
-            <View>
-              <Text style={[s.label, { textAlign: 'right', fontSize: 5 }]}>VALOR A RECEBER</Text>
-              <Text style={[s.value, { textAlign: 'right', fontSize: 9, fontFamily: 'Helvetica-Bold' }]}>{`R$ ${data.valorReceber}`}</Text>
-            </View>
-          </View>
-        </View>
-        
-        {/* ============================================================ */}
-        {/* INFORMAÇÕES DA CARGA */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Informações da Carga</Text>
-        <View style={s.row}>
-          {LabelValue({ label: "UNIDADE/QTD — PESO BRUTO", value: `${data.especieCarga || '01-KG'} / ${data.peso} KG`, style: s.flex1 })}
-          {LabelValue({ label: "QTDE VOLUMES", value: data.quantidadeVolumes, style: [s.flex1, s.boxNoBorderLeft] })}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* INFORMAÇÕES TRIBUTÁRIAS */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Informações Relativas ao Imposto</Text>
-        <View style={s.row}>
-          {LabelValue({ label: "SITUAÇÃO TRIBUTÁRIA", value: data.situacaoTributaria || 'ICMS Simples Nacional', style: s.flex2 })}
-          {LabelValue({ label: "BASE DE CÁLCULO", value: `R$ ${data.icmsBase}`, style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "ALÍQUOTA ICMS (%)", value: `${data.icmsAliquota}%`, style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "VALOR ICMS", value: `R$ ${data.icmsValor}`, style: [s.flex1, s.boxNoBorderLeft] })}
-          {LabelValue({ label: "% RED. BC", value: '0,00', style: [{ width: 50 }, s.boxNoBorderLeft] })}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* DOCUMENTOS ORIGINÁRIOS */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Documentos Originários (NF-e)</Text>
-        
-        <View style={[s.box, { minHeight: 30 }]}>
-          {data.nfeChaves && data.nfeChaves.length > 0 ? (
-            data.nfeChaves.map((chave, idx) => (
-              <View key={idx} style={[s.row, { marginBottom: 1 }]}>
-                <Text style={{ fontSize: 5.5, width: 15, color: '#888' }}>{`${idx + 1}.`}</Text>
-                <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica', letterSpacing: 0.3 }}>
-                  {typeof chave === 'string' ? chave.replace(/(.{4})/g, '$1 ').trim() : String(chave)}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={{ fontSize: 6.5, color: '#888' }}>Nenhum documento vinculado</Text>
-          )}
-        </View>
-        
-        {/* ============================================================ */}
-        {/* OBSERVAÇÕES GERAIS */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Observações Gerais</Text>
-        <View style={[s.box, { minHeight: 30 }]}>
-          {!!data.observacoes && (
-            <Text style={{ fontSize: 6.5 }}>{String(data.observacoes)}</Text>
-          )}
+          ))}
         </View>
 
-        {/* ============================================================ */}
-        {/* INFORMAÇÕES ESPECÍFICAS DO MODAL RODOVIÁRIO */}
-        {/* ============================================================ */}
-        <Text style={s.sectionTitle}>Informações Específicas do Modal Rodoviário</Text>
+        {/* 9. OBSERVAÇÕES (Espaço Expansivo) */}
+        <Text style={s.sectionTitle}>OBSERVAÇÕES GERAIS</Text>
+        <View style={[s.box, s.boxNoBorderTop, { flexGrow: 1, padding: 4 }]}>
+          {!!data.observacoes && <Text style={{ fontSize: 6.5, lineHeight: 1.3 }}>{String(data.observacoes)}</Text>}
+        </View>
+
+        {/* 10. MODAL / FISCO */}
+        <Text style={s.sectionTitle}>INFORMAÇÕES ESPECÍFICAS DO MODAL RODOVIÁRIO</Text>
         <View style={s.row}>
-          {LabelValue({ label: "RNTRC DA EMPRESA", value: data.emitente.rntrc || '-', style: { width: 90 } })}
-          {LabelValue({ label: "DATA PREV. ENTREGA", value: data.dataPrevEntrega || '-', style: [{ width: 90 }, s.boxNoBorderLeft] })}
-          <View style={[s.flex1, s.box, s.boxNoBorderLeft]}>
-            <Text style={s.label}>USO EXCLUSIVO DO EMISSOR DO CT-e</Text>
+          {LabelValue({ label: "RNTRC DA EMPRESA", value: data.emitente?.rntrc, style: [s.flex1, s.boxNoBorderTop] })}
+          {LabelValue({ label: "DATA PREV. ENTREGA", value: data.dataPrevEntrega, style: [s.flex1, s.boxNoBorderTop, s.boxNoBorderLeft] })}
+        </View>
+        <View style={[s.row, { height: 65 }]}>
+          <View style={[s.flex1, s.box, s.boxNoBorderTop, { padding: 4 }]}>
+            <Text style={s.label}>USO EXCLUSIVO DO EMISSOR DO CT-E</Text>
           </View>
-          <View style={[s.flex1, s.box, s.boxNoBorderLeft]}>
+          <View style={[s.flex1, s.box, s.boxNoBorderTop, s.boxNoBorderLeft, { padding: 4 }]}>
             <Text style={s.label}>RESERVADO AO FISCO</Text>
           </View>
         </View>
-        
-        {/* ============================================================ */}
+
         {/* RODAPÉ */}
-        {/* ============================================================ */}
-        <Text style={s.footer}>
-          Documento emitido por DezLog — Sistema de Gestão para Transportadoras | www.dezlog.com.br
-        </Text>
-        
+        <View style={s.footerRow}>
+          <Text style={s.footerText}>
+            {`Impresso em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+          </Text>
+          <Text style={s.footerText}>Emitido por sistema autorizado - www.dezlog.com.br</Text>
+        </View>
       </Page>
     </Document>
   );

@@ -18,7 +18,7 @@ function DriverPortalLayout({ children }: { children: React.ReactNode }) {
     
     return (
         <div className="flex flex-col min-h-screen bg-muted/40">
-            <main className="flex-grow container mx-auto max-w-4xl p-0 sm:p-4">
+            <main className="flex-grow container mx-auto max-w-6xl p-0 sm:p-4">
                 {children}
             </main>
             <LocationTracker />

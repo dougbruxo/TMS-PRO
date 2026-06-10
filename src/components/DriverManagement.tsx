@@ -45,6 +45,8 @@ const driverFormSchema = z.object({
   cnhDocumentUrl: z.string().optional(),
   addressProofUrl: z.string().optional(),
   hasPortalAccess: z.boolean().default(false),
+  isThirdParty: z.boolean().default(false),
+  isEmployee: z.boolean().default(false),
 });
 
 export function DriverManagement({ quickEditId, onQuickEditComplete, hideList }: { quickEditId?: string, onQuickEditComplete?: () => void, hideList?: boolean }) {
@@ -166,6 +168,8 @@ export function DriverManagement({ quickEditId, onQuickEditComplete, hideList }:
       mainVehicleId: '', linkedCarretaIds: [],
       avatarUrl: '', cnhDocumentUrl: '', addressProofUrl: '',
       hasPortalAccess: false,
+      isThirdParty: false,
+      isEmployee: false,
     });
   };
 
@@ -177,6 +181,8 @@ export function DriverManagement({ quickEditId, onQuickEditComplete, hideList }:
       form.reset({
           ...driver,
           linkedCarretaIds: driver.linkedCarretaIds || [],
+          isThirdParty: !!driver.isThirdParty,
+          isEmployee: !!driver.isEmployee,
       });
     }
     setIsFormDialogOpen(true);
@@ -444,7 +450,14 @@ export function DriverManagement({ quickEditId, onQuickEditComplete, hideList }:
                                         <AvatarImage src={driver.avatarUrl ? `${driver.avatarUrl}?t=${new Date().getTime()}` : undefined} alt={driver.name} />
                                         <AvatarFallback>{getInitials(driver.name)}</AvatarFallback>
                                     </Avatar>
-                                    {driver.name}
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold flex items-center gap-1.5">
+                                            {driver.name}
+                                            {driver.isThirdParty && <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] px-1 py-0 h-4 rounded-md">Terceiro</Badge>}
+                                            {driver.isEmployee && <Badge variant="outline" className="border-blue-500/30 text-blue-500 bg-blue-500/5 text-[10px] px-1 py-0 h-4 rounded-md">Funcionário</Badge>}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">{driver.cpf || 'N/A'}</span>
+                                    </div>
                                 </TableCell>
                                 <TableCell>{driver.cpf || 'N/A'}</TableCell>
                                 <TableCell>{driver.phone1 || 'N/A'}</TableCell>
@@ -615,6 +628,32 @@ export function DriverManagement({ quickEditId, onQuickEditComplete, hideList }:
                           {form.watch('addressProofUrl') && !addressProofFile && (<a href={`${form.watch('addressProofUrl')}?t=${new Date().getTime()}`} target="_blank" rel="noopener noreferrer"><Button type="button" variant="secondary" size="icon"><Eye className="h-4 w-4" /></Button></a>)}
                       </div>
                   </div>
+                </div>
+                <Separator />
+                <h3 className="text-lg font-medium">Classificação do Motorista</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="isThirdParty" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Motorista Terceiro</FormLabel>
+                        <FormDescription>Classifica o motorista como terceiro para fluxos de pagamento e controle de despesas.</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="isEmployee" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Funcionário CLT / Próprio</FormLabel>
+                        <FormDescription>Classifica o motorista como funcionário próprio/interno da empresa.</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )} />
                 </div>
                 <Separator />
                 <h3 className="text-lg font-medium">Acesso ao Portal</h3>

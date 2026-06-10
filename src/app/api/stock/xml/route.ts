@@ -63,18 +63,35 @@ export async function POST(request: Request) {
     }
 
     const text = await file.text();
+    // 1. Higieniza o XML contra caracteres especiais brutos (como '<' ou '&' soltos no texto)
+    const sanitizedXml = text
+      .replace(/<(?!\/?([a-zA-Z_][a-zA-Z0-9_\-\:]*)|[?!])/g, '&lt;')
+      .replace(/&(?!(amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)/gi, '&amp;');
+
     const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: '@_',
+        removeNSPrefix: true, // Adicionado para remover os prefixos de namespace de forma compatível
         isArray: (tagName) => {
             // Force these tags to always be parsed as arrays, even when there's only one element
             return ['det', 'rastro', 'vol', 'item', 'Item'].includes(tagName);
         }
     });
-    const jsonObj = parser.parse(text);
+    const jsonObj = parser.parse(sanitizedXml);
+
+    // Encontra de forma robusta e recursiva o nó infNFe no objeto
+    const findKey = (obj: any, keyName: string): any => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj[keyName]) return obj[keyName];
+        for (const k of Object.keys(obj)) {
+            const res = findKey(obj[k], keyName);
+            if (res) return res;
+        }
+        return null;
+    }
 
     // Extract NFe data
-    const infNFe = jsonObj.nfeProc?.NFe?.infNFe || jsonObj.NFe?.infNFe;
+    const infNFe = findKey(jsonObj, 'infNFe');
     if (!infNFe) {
         return NextResponse.json({ message: 'XML não contém uma NF-e válida' }, { status: 400 });
     }

@@ -14,6 +14,7 @@ import {
   CheckCircle2, XCircle, Calendar, Building2, FileKey2, Eye, EyeOff
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { BackButton } from '@/components/BackButton';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -134,22 +135,14 @@ export default function CertificatePage() {
   return (
     <main className="container mx-auto p-4 md:p-8 max-w-2xl">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/settings')}
-          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
-        <div className="h-4 w-px bg-border hidden md:block" />
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
         <div className="flex flex-col">
           <h1 className="text-xl font-bold text-primary whitespace-nowrap">Certificado Digital A1</h1>
-          <p className="text-xs text-muted-foreground hidden md:block">
+          <p className="text-xs text-muted-foreground hidden md:block mt-1">
             Importe o certificado .pfx para assinatura digital de documentos fiscais (CT-e e MDF-e).
           </p>
         </div>
+        <BackButton href="/settings" className="mb-0 mt-2 text-muted-foreground hover:text-primary transition-colors" />
       </div>
 
       {/* Status Card */}

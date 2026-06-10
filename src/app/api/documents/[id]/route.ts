@@ -4,7 +4,8 @@ import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
-        const docId = params.id;
+        const { id } = await context.params;
+        const docId = id;
 
         if (!docId) {
             return new NextResponse('Missing parameter: id', { status: 400 });

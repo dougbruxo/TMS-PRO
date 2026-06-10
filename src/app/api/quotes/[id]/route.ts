@@ -31,7 +31,26 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     // Verificação de Multi-Tenancy — só restringe clientes
     if (authUser.role === 'cliente' || authUser.role === 'sub-cliente') {
       const tenantId = authUser.role === 'sub-cliente' ? (authUser.parentId || authUser.userId) : authUser.userId;
-      if (quote.userId !== tenantId) {
+      
+      let hasAccess = quote.userId === tenantId;
+      
+      if (!hasAccess && quote.tomadorId) {
+        const clientCompanies = await db.collection('client_companies').find({ userId: tenantId }).toArray();
+        const companyCnpjsCleaned = clientCompanies.map(c => c.cnpj.replace(/[^\d]/g, ''));
+        const companyCnpjsRaw = clientCompanies.map(c => c.cnpj);
+        const allCnpjs = Array.from(new Set([...companyCnpjsCleaned, ...companyCnpjsRaw]));
+        
+        if (allCnpjs.length > 0) {
+          const matchingCustomers = await db.collection('customers').find({ 
+            cnpj: { $in: allCnpjs } 
+          }).toArray();
+          const customerIds = matchingCustomers.map(c => c._id.toHexString());
+          
+          hasAccess = customerIds.includes(quote.tomadorId) || matchingCustomers.some(c => c._id.toString() === quote.tomadorId.toString());
+        }
+      }
+      
+      if (!hasAccess) {
         return NextResponse.json({ message: 'Acesso negado para este registro.' }, { status: 403 });
       }
     }
@@ -147,6 +166,48 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             if (emitData.name) (setUpdates as any).remetente = emitData.name;
             if (destData.id) (setUpdates as any).destinatarioId = destData.id;
             if (destData.name) (setUpdates as any).destinatario = destData.name;
+
+            // Mapeamento e registro inteligente do Tomador
+            let xmlTomadorParty = null;
+            const quoteTomadorLower = (originalQuote.tomador || '').toLowerCase().trim();
+            const quoteRemetenteLower = (originalQuote.remetente || '').toLowerCase().trim();
+            const quoteDestinatarioLower = (originalQuote.destinatario || '').toLowerCase().trim();
+            
+            const nfeEmit = nfeParties.emitente;
+            const nfeDest = nfeParties.destinatario;
+            
+            const emitNameLower = (nfeEmit?.name || '').toLowerCase().trim();
+            const destNameLower = (nfeDest?.name || '').toLowerCase().trim();
+            
+            if (
+              quoteTomadorLower === 'remetente' || 
+              (quoteRemetenteLower && (quoteTomadorLower === quoteRemetenteLower || quoteTomadorLower.includes(quoteRemetenteLower) || quoteRemetenteLower.includes(quoteTomadorLower))) ||
+              (emitNameLower && (emitNameLower.includes(quoteTomadorLower) || quoteTomadorLower.includes(emitNameLower)))
+            ) {
+              xmlTomadorParty = nfeEmit;
+            } else if (
+              quoteTomadorLower === 'destinatario' || 
+              (quoteDestinatarioLower && (quoteTomadorLower === quoteDestinatarioLower || quoteTomadorLower.includes(quoteDestinatarioLower) || quoteDestinatarioLower.includes(quoteTomadorLower))) ||
+              (destNameLower && (destNameLower.includes(quoteTomadorLower) || quoteTomadorLower.includes(destNameLower)))
+            ) {
+              xmlTomadorParty = nfeDest;
+            } else {
+              xmlTomadorParty = nfeEmit || nfeDest;
+            }
+
+            if (xmlTomadorParty) {
+              const tomadorData = await registerCustomerIfMissing(xmlTomadorParty, 'Tomador');
+              if (tomadorData.id) {
+                (setUpdates as any).tomadorId = tomadorData.id;
+                changeDetails.push(`"tomadorId" de "N/A" para "${tomadorData.id}"`);
+              }
+              if (tomadorData.name) {
+                (setUpdates as any).tomador = tomadorData.name;
+                if (originalQuote.tomador !== tomadorData.name) {
+                  changeDetails.push(`"tomador" de "${originalQuote.tomador || 'N/A'}" para "${tomadorData.name}"`);
+                }
+              }
+            }
             
         } catch (partyErr) {
             console.error("Error creating customers from nfeParties:", partyErr);
@@ -218,18 +279,122 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         
         // Log other generic changes
         Object.keys(body).forEach(key => {
-            const updatableFields = ['status', 'obs', 'billingDueDate', 'paymentStatus', 'paymentDate', 'valorFinal', 'desconto', 'enderecoColeta', 'enderecoEntrega', 'priority', 'paidAmount', 'invoiceId', 'nfeXml', 'peso', 'volumeCount', 'quantidade', 'nfNumber', 'nfeChave', 'driverId', 'vehicleId', 'totalExpense', 'remetenteId', 'destinatarioId', 'remetente', 'destinatario', 'tomador', 'tomadorId', 'responsavelSolicitante', 'contato', 'email', 'isRuralOrigem', 'isRuralDestino', 'cubagem', 'hasManualFinalValue', 'hasManualBaseFreight', 'valorBaseManual'];
+            const updatableFields = ['status', 'obs', 'billingDueDate', 'paymentStatus', 'paymentDate', 'valorFinal', 'desconto', 'enderecoColeta', 'enderecoEntrega', 'priority', 'paidAmount', 'invoiceId', 'nfeXml', 'peso', 'volumeCount', 'quantidade', 'nfNumber', 'nfeChave', 'driverId', 'driverName', 'vehicleId', 'totalExpense', 'remetenteId', 'destinatarioId', 'remetente', 'destinatario', 'tomador', 'tomadorId', 'responsavelSolicitante', 'contato', 'email', 'isRuralOrigem', 'isRuralDestino', 'cubagem', 'hasManualFinalValue', 'hasManualBaseFreight', 'valorBaseManual', 'operationalHistory'];
             if (updatableFields.includes(key) && JSON.stringify(originalQuote[key as keyof Quote]) !== JSON.stringify(body[key])) {
                 (setUpdates as any)[key] = body[key];
-                 if (user) {
+                 if (user && key !== 'operationalHistory') {
                      changeDetails.push(`"${key}" de "${formatValueForLog(key, originalQuote[key as keyof Quote])}" para "${formatValueForLog(key, body[key])}"`);
                  }
             }
         });
     }
 
-    if (setUpdates.status === 'Finalizado' && !originalQuote.closedAt) {
-      setUpdates.closedAt = new Date().toISOString();
+    if (setUpdates.status === 'Finalizado') {
+      if (!originalQuote.closedAt) {
+        setUpdates.closedAt = new Date().toISOString();
+      }
+      const deliveryDateStr = setUpdates.closedAt || originalQuote.closedAt || new Date().toISOString();
+      const forecastStr = body.deliveryForecast || originalQuote.deliveryForecast;
+      if (forecastStr) {
+        const forecastDate = new Date(forecastStr);
+        const deliveryDate = new Date(deliveryDateStr);
+        if (!isNaN(forecastDate.getTime()) && !isNaN(deliveryDate.getTime())) {
+          setUpdates.deliveryStatus = deliveryDate <= forecastDate ? 'No Prazo' : 'Atrasado';
+        }
+      }
+    }
+
+    if (setUpdates.status === 'Em Rota' && originalQuote.status !== 'Em Rota') {
+      const prazo = Number(setUpdates.prazoEntrega ?? originalQuote.prazoEntrega ?? 0);
+      const forecastDate = new Date();
+      forecastDate.setDate(forecastDate.getDate() + prazo);
+      setUpdates.deliveryForecast = forecastDate.toISOString();
+      
+      // Também adicionamos aos logs do histórico a nova previsão
+      changeDetails.push(`"deliveryForecast" de "${originalQuote.deliveryForecast ? formatValueForLog('deliveryForecast', originalQuote.deliveryForecast) : 'N/A'}" para "${formatValueForLog('deliveryForecast', setUpdates.deliveryForecast)}"`);
+    }
+
+    // Processamento de Notificações In-App e Regras de Motorista Terceiro
+    if (setUpdates.status && setUpdates.status !== originalQuote.status) {
+        const oldStatus = originalQuote.status;
+        const newStatus = setUpdates.status;
+        const quoteCode = originalQuote.quoteCode || `LEGACY-${id.slice(0, 5)}`;
+        
+        try {
+            // 1. Notificação para o criador da cotação
+            if (originalQuote.userId) {
+                const userNotification = {
+                    userId: originalQuote.userId,
+                    title: `Cotação ${quoteCode} atualizada`,
+                    message: `A cotação mudou de "${oldStatus}" para "${newStatus}".`,
+                    type: 'status_change',
+                    quoteId: id,
+                    quoteCode: quoteCode,
+                    read: false,
+                    createdAt: new Date().toISOString()
+                };
+                await db.collection('notifications').insertOne(userNotification);
+            }
+            
+            // 2. Verificação de motorista Terceiro para status "No Galpão" ou "Entregue"
+            const isTargetStatus = newStatus === 'No Galpão' || newStatus === 'Entregue';
+            if (isTargetStatus) {
+                const driverId = body.driverId || originalQuote.driverId;
+                if (driverId) {
+                    let isThirdParty = false;
+                    let driverName = body.driverName || originalQuote.driverName || 'Motorista';
+                    try {
+                        const driver = await db.collection('drivers').findOne({ _id: new ObjectId(driverId) });
+                        if (driver && driver.isThirdParty) {
+                            isThirdParty = true;
+                            driverName = driver.name;
+                        }
+                    } catch (err) {
+                        const driver = await db.collection('drivers').findOne({ id: driverId });
+                        if (driver && driver.isThirdParty) {
+                            isThirdParty = true;
+                            driverName = driver.name;
+                        }
+                    }
+                    
+                    if (isThirdParty) {
+                        // Notificar Administradores
+                        const adminNotification = {
+                            userId: 'admin',
+                            title: `Alerta de Terceiro: Cotação ${quoteCode}`,
+                            message: `A cotação está "${newStatus}" com o motorista terceiro ${driverName}. Despesas marcadas como atrasadas.`,
+                            type: 'third_party_alert',
+                            quoteId: id,
+                            quoteCode: quoteCode,
+                            read: false,
+                            createdAt: new Date().toISOString()
+                        };
+                        await db.collection('notifications').insertOne(adminNotification);
+                        
+                        // Atualizar despesas associadas para "atrasado"
+                        await db.collection('expenses').updateMany(
+                            { 
+                                quoteId: id, 
+                                status: { $in: ['pendente', 'parcial'] } 
+                            },
+                            { 
+                                $set: { status: 'atrasado' },
+                                $push: {
+                                    history: {
+                                        timestamp: new Date().toISOString(),
+                                        user: 'Sistema',
+                                        action: 'Atualização Automática',
+                                        details: `Despesa marcada como atrasada devido à confirmação de status "${newStatus}" com motorista Terceiro.`
+                                    }
+                                } as any
+                            }
+                        );
+                    }
+                }
+            }
+        } catch (notifErr) {
+            console.error('Erro ao processar notificações/alertas de terceiros:', notifErr);
+        }
     }
 
     // Handle Driver Rating process
@@ -279,21 +444,42 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       pushOperations.billingHistory = { $each: billingHistoryEvents, $position: 0 };
     }
     
-    // Process New Operational Event
+        // Process New Operational Event
     if (operationalEvent && user) {
         const operationalEventId = uuidv4();
         const fullEvent: OperationalEvent = { id: operationalEventId, timestamp: new Date().toISOString(), userId: user.id, username: user.username, status: body.status || originalQuote.status, details: operationalEvent.details || `Status alterado para ${body.status}`, action: operationalEvent.action || 'ETAPA_OPERACIONAL', ...operationalEvent };
-        pushOperations.operationalHistory = { $each: [fullEvent] };
+        
+        if (body.operationalHistory && Array.isArray(body.operationalHistory)) {
+            body.operationalHistory.push(fullEvent);
+            setUpdates.operationalHistory = body.operationalHistory;
+        } else {
+            pushOperations.operationalHistory = { $each: [fullEvent] };
+        }
         
         if (fullEvent.expense && fullEvent.expense > 0) {
           // Incrementar totalExpense na cotação
           const currentExpense = originalQuote.totalExpense || 0;
           setUpdates.totalExpense = currentExpense + fullEvent.expense;
 
+          // Lógica de fallback para motorista
+          let finalDriverId = fullEvent.driverId || body.driverId || originalQuote.driverId || null;
+          let finalDriverName = fullEvent.driverName || body.driverName || originalQuote.driverName || null;
+
+          if (finalDriverId && !finalDriverName) {
+              try {
+                  const driverObj = await db.collection('drivers').findOne({ _id: new ObjectId(finalDriverId) });
+                  if (driverObj) {
+                      finalDriverName = driverObj.name;
+                  }
+              } catch (err) {
+                  console.error("Erro ao buscar motorista para despesa:", err);
+              }
+          }
+
           // Criar registro de despesa na collection 'expenses'
           const now = new Date();
           const expenseMonthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-          const driverLabel = fullEvent.driverName || 'Motorista não identificado';
+          const driverLabel = finalDriverName || 'Motorista não identificado';
           const expenseRecord = {
               description: `${driverLabel} - ${fullEvent.action} - ${originalQuote.quoteCode || id}`,
               value: fullEvent.expense,
@@ -301,8 +487,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
               categoryName: 'Motorista',
               quoteId: id,
               operationalEventId: operationalEventId,
-              driverId: fullEvent.driverId || null,
-              driverName: fullEvent.driverName || null,
+              driverId: finalDriverId,
+              driverName: finalDriverName,
               monthYear: expenseMonthYear,
               dueDate: now.toISOString(),
               createdBy: user.id,
@@ -356,6 +542,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             // If tomador changed, update it in the invoice as well (assuming invoice tomador follows the quotes)
             if (setUpdates.tomador) {
                 invoiceUpdate.tomador = setUpdates.tomador;
+            }
+            if (setUpdates.tomadorId) {
+                invoiceUpdate.tomadorId = setUpdates.tomadorId;
             }
 
             await db.collection('invoices').updateOne(

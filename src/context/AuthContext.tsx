@@ -248,10 +248,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
         }
 
+        // 3. Buscar e exibir novas notificações in-app e Web Notifications
+        const token = localStorage.getItem('sessionToken');
+        if (token) {
+            const notificationsRes = await fetch('/api/notifications', {
+                headers: { 'Authorization': `Bearer ${token}` },
+                cache: 'no-store'
+            });
+            if (notificationsRes.ok) {
+                const notificationsList = await notificationsRes.json();
+                if (Array.isArray(notificationsList) && notificationsList.length > 0) {
+                    const displayedIds: string[] = [];
+                    notificationsList.forEach((notif: any) => {
+                        displayedIds.push(notif.id);
+                        
+                        // Exibir Toast Elegante In-App
+                        toast({
+                            title: notif.title,
+                            description: notif.message,
+                            variant: notif.type === 'third_party_alert' ? 'destructive' : 'default',
+                        });
+                        
+                        // Exibir Web Notification nativa
+                        showNotification(notif.title, {
+                            body: notif.message,
+                        });
+                    });
+                    
+                    // Marcar essas notificações como lidas no backend
+                    if (displayedIds.length > 0) {
+                        await fetch('/api/notifications', {
+                            method: 'PUT',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ ids: displayedIds })
+                        });
+                    }
+                }
+            }
+        }
+
     } catch (error) {
       console.error("Failed to fetch notification counts:", error);
     }
-  }, [user, showNotification, pathname]);
+  }, [user, showNotification, pathname, toast]);
 
   const checkUserSession = useCallback(async () => {
     try {

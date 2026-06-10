@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     } = body;
 
     if (!documentId || !tipoEvento) {
-      return NextResponse.json({ message: 'documentId e tipoEvento são obrigatórios' }, { status: 400 });
+      return NextResponse.json({ message: 'documentId e tipoEvento sÃ£o obrigatÃ³rios' }, { status: 400 });
     }
 
     const { db } = await connectToDatabase();
@@ -37,27 +37,47 @@ export async function POST(request: Request) {
     }
 
     if (!doc) {
-      return NextResponse.json({ message: 'Documento não encontrado' }, { status: 404 });
+      return NextResponse.json({ message: 'Documento nÃ£o encontrado' }, { status: 404 });
     }
 
     if (doc.status === 'cancelado' || doc.status === 'encerrado') {
-      return NextResponse.json({ message: `Documento já está ${doc.status}` }, { status: 400 });
+      return NextResponse.json({ message: `Documento jÃ¡ estÃ¡ ${doc.status}` }, { status: 400 });
     }
 
     // 2. Determinar tipo e ambiente
-    const isCTe = doc.type === 'CTE';
-    const isMDFe = doc.type === 'MDFE';
+    const isCTe = doc.type?.toUpperCase().replace('-', '') === 'CTE';
+    const isMDFe = doc.type?.toUpperCase().replace('-', '') === 'MDFE';
     const ambiente = doc.environment === 'producao' ? 'producao' : 'homologacao';
     
     // 3. Buscar perfil da empresa e certificado
     const company = await db.collection('company_profiles').findOne({ isDefault: true });
-    if (!company || !company.cnpj || !company.codigoUf) {
-      return NextResponse.json({ message: 'Perfil da empresa incompleto (CNPJ e código UF são necessários)' }, { status: 400 });
+
+    // cUF: derivar dos 2 primeiros dÃ­gitos da chave de acesso (fonte canÃ´nica â€” sempre correto)
+    const chaveAcessoLimpa = (doc.chaveAcesso || '').replace(/\D/g, '');
+    const cUFFromChave = chaveAcessoLimpa.substring(0, 2);
+
+    // CNPJ: preferir o do perfil da empresa; fallback: extrair do XML assinado armazenado
+    let cnpjEmitente = company?.cnpj?.replace(/\D/g, '') || '';
+    if (!cnpjEmitente && doc.xmlAssinado) {
+      // Extrair CNPJ do bloco <emit><CNPJ> do XML armazenado
+      const cnpjMatch = doc.xmlAssinado.match(/<emit[^>]*>[\s\S]*?<CNPJ>(\d{14})<\/CNPJ>/);
+      if (cnpjMatch) cnpjEmitente = cnpjMatch[1];
+    }
+    if (!cnpjEmitente && chaveAcessoLimpa.length === 44) {
+      // Ãšltimo fallback: posiÃ§Ãµes 3-16 da chave de acesso = CNPJ emitente
+      cnpjEmitente = chaveAcessoLimpa.substring(3, 17);
+    }
+
+    if (!cUFFromChave || cUFFromChave.length !== 2) {
+      return NextResponse.json({ message: 'Chave de acesso do documento invÃ¡lida (cUF nÃ£o encontrado)' }, { status: 400 });
+    }
+    if (!cnpjEmitente) {
+      return NextResponse.json({ message: 'NÃ£o foi possÃ­vel determinar o CNPJ do emitente para o evento' }, { status: 400 });
     }
 
     const certData = await loadCertificateFromDB(db);
     if (!certData) {
-      return NextResponse.json({ message: 'Certificado digital não configurado' }, { status: 400 });
+      return NextResponse.json({ message: 'Certificado digital nÃ£o configurado' }, { status: 400 });
     }
 
     // Calcular nSeqEvento para CC-e (deve ser incremental)
@@ -71,15 +91,15 @@ export async function POST(request: Request) {
     const eventoInput: EventoInput = {
       tipoDocumento: isCTe ? 'CTE' : 'MDFE',
       ambiente,
-      codigoUf: company.codigoUf,
-      cnpj: company.cnpj.replace(/\D/g, ''),
+      codigoUf: cUFFromChave,
+      cnpj: cnpjEmitente,
       chaveAcesso: doc.chaveAcesso,
       tipoEvento,
       nSeqEvento,
       detalhes: {
         protocolo: doc.protocolo,
         justificativa,
-        codigoMunicipioEncerramento: codigoMunicipioEncerramento || doc.cMunCarrega || doc.cMunDescarga, // fallback simplificado
+        codigoMunicipioEncerramento: codigoMunicipioEncerramento || doc.cMunCarrega || doc.cMunDescarga,
         ufEncerramento: ufEncerramento || doc.ufFim || doc.ufInicio,
         grupoAlterado,
         campoAlterado,
@@ -87,7 +107,7 @@ export async function POST(request: Request) {
       }
     };
 
-    // 5. Construir XML não assinado
+    // 5. Construir XML nÃ£o assinado
     let xmlUnsigned;
     try {
       const result = buildEventoXml(eventoInput);
@@ -99,51 +119,42 @@ export async function POST(request: Request) {
     // 6. Assinar o XML
     const xmlSigned = signEventoXml(xmlUnsigned, certData.privateKey, certData.certificate);
 
-    // 7. Enviar via SOAP
-    const certInfo = { privateKey: certData.privateKey, certificate: certData.certificate };
-    
-    let url = '';
-    let action = '';
-    
+    // 7. Enviar via SOAP usando as funÃ§Ãµes de alto nÃ­vel do soap-client
+    // (que constroem o envelope SOAP 1.2 correto com buildSoapEnvelope)
+    const UF_BY_CODE: Record<string, string> = {
+      '11':'RO','12':'AC','13':'AM','14':'RR','15':'PA','16':'AP','17':'TO',
+      '21':'MA','22':'PI','23':'CE','24':'RN','25':'PB','26':'PE','27':'AL','28':'SE','29':'BA',
+      '31':'MG','32':'ES','33':'RJ','35':'SP','41':'PR','42':'SC','43':'RS',
+      '50':'MS','51':'MT','52':'GO','53':'DF',
+    };
+    const ufEmitente = company?.estado || UF_BY_CODE[cUFFromChave] || 'RS';
+
+    const { enviarEvento, enviarEventoMdfe } = await import('@/lib/sefaz/soap-client');
+
+    let soapResponse: string;
     if (isCTe) {
-      const endpoints = getEndpoints(company.estado || 'RS', ambiente);
-      url = endpoints.CTeRecepcaoEvento;
-      action = SOAP_ACTIONS.CTeRecepcaoEvento;
+      const sefazResp = await enviarEvento(xmlSigned, ufEmitente, ambiente, certData);
+      soapResponse = sefazResp.xmlRetorno;
     } else {
-      const endpoints = getMdfeEndpoints(ambiente);
-      url = endpoints.MDFeRecepcaoEvento;
-      action = MDFE_SOAP_ACTIONS.MDFeRecepcaoEvento;
+      const sefazResp = await enviarEventoMdfe(xmlSigned, ambiente, certData);
+      soapResponse = sefazResp.xmlRetorno;
     }
 
-    // O Envelope de evento envia os dados dentro de <cteDadosMsg> (para CT-e) ou <mdfeDadosMsg> (para MDF-e)
-    const namespace = isCTe ? 'http://www.portalfiscal.inf.br/cte/wsdl/CTeRecepcaoEventoV4' : 'http://www.portalfiscal.inf.br/mdfe/wsdl/MDFeRecepcaoEvento';
-    const msgTag = isCTe ? 'cteDadosMsg' : 'mdfeDadosMsg';
-    
-    const soapBody = `
-      <${msgTag} xmlns="${namespace}">
-        ${xmlSigned}
-      </${msgTag}>
-    `;
-
-    const soapResponse = await sendSoapRequest(url, action, soapBody, certInfo);
-    
     // 8. Extrair resposta
-    // Para evento, o retorno é retEventoCTe ou retEventoMDFe
     const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true });
     const parsedObj = parser.parse(soapResponse);
 
     const tagRetorno = isCTe ? 'retEventoCTe' : 'retEventoMDFe';
     const result = extractDeepValue(parsedObj, tagRetorno);
-    
+
     const retEvento = result?.infEvento || extractDeepValue(parsedObj, 'infEvento');
-    
+
     // Status 135 significa Evento Registrado e Vinculado
-    if (retEvento && retEvento.cStat === '135') {
-      // Atualizar no banco de dados local
+    if (retEvento && (retEvento.cStat === '135' || String(retEvento.cStat) === '135')) {
       let newStatus = doc.status;
       if (tipoEvento === '110111') newStatus = 'cancelado';
       else if (tipoEvento === '110112') newStatus = 'encerrado';
-      
+
       const eventoRegistro = {
         tipo: tipoEvento,
         protocolo: retEvento.nProt,
@@ -153,8 +164,8 @@ export async function POST(request: Request) {
 
       await db.collection('issued_documents').updateOne(
         { _id: doc._id },
-        { 
-          $set: { 
+        {
+          $set: {
             status: newStatus,
             updatedAt: new Date().toISOString()
           },
@@ -184,9 +195,10 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Erro na rota de Evento SEFAZ:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: false,
       message: error.message || 'Erro interno no servidor'
     }, { status: 500 });
   }
 }
+

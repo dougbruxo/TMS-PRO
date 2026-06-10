@@ -364,6 +364,6 @@ export function buildMdfeXml(dados: MdfeDados): MdfeXmlResult {
     xml: builder.build(mdfeObj),
     chaveAcesso: chave44,
     cDV,
-    codigoNumerico,
+    codigoNumerico: String(codigoNumerico),
   };
 }

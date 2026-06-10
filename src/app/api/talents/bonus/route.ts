@@ -47,14 +47,25 @@ export async function POST(request: Request) {
         const startDate = parseISO(startDateStr);
         const endDate = endOfDay(parseISO(endDateStr));
         
+        const talentUserIdStr = userObjectId.toHexString();
+        
         const baseQuery = {
-            userId: userObjectId,
             status: 'Finalizado' as const,
-             $or: [
-                { closedAt: { $gte: startDate.toISOString(), $lte: endDate.toISOString() } },
-                { 
-                    closedAt: { $exists: false },
-                    data: { $gte: startDate.toISOString(), $lte: endDate.toISOString() }
+            $or: [
+                { userId: userObjectId },
+                { userId: talentUserIdStr },
+                { creatorId: userObjectId },
+                { creatorId: talentUserIdStr }
+            ],
+            $and: [
+                {
+                    $or: [
+                        { closedAt: { $gte: startDate.toISOString(), $lte: endDate.toISOString() } },
+                        { 
+                            closedAt: { $exists: false },
+                            data: { $gte: startDate.toISOString(), $lte: endDate.toISOString() }
+                        }
+                    ]
                 }
             ]
         };

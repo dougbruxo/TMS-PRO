@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { OwnerManagement } from '@/components/OwnerManagement';
-import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, Briefcase } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function ManageOwnersPage() {
   const { user, loading: authLoading } = useAuth();
@@ -29,10 +29,15 @@ export default function ManageOwnersPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/cadastros')} className="mb-8">
-        &larr; Voltar para Cadastros
-      </Button>
-      <h1 className="text-3xl font-bold text-primary mb-8">Gerenciar Proprietários</h1>
+      <PageHeader
+        icon={<Briefcase className="h-4 w-4" />}
+        badge="Registros Mestres"
+        titlePrefix="Gerenciar"
+        titleHighlight="Proprietários"
+        description="Cadastre proprietários de veículos para vincular à frota."
+        backHref="/cadastros"
+        backLabel="Voltar para Cadastros"
+      />
       
       <OwnerManagement />
     </main>

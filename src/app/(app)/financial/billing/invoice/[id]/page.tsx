@@ -176,34 +176,53 @@ export default async function UnifiedInvoicePage({ params, searchParams }: PageP
       tomadorId = (groupedQuotes[0] as any).tomadorId;
     }
 
+    const formatCnpjCpf = (raw: string): string => {
+      if (raw.length === 14) return raw.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+      if (raw.length === 11) return raw.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+      return raw;
+    };
+
     if (tomadorId && ObjectId.isValid(tomadorId)) {
+      // 1. Try customers collection first
       const customer = await db.collection('customers').findOne({ _id: new ObjectId(tomadorId) });
       if (customer?.cnpj) {
-        const raw = customer.cnpj.replace(/\D/g, '');
-        tomadorCnpj = raw.length === 14
-          ? raw.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
-          : raw.length === 11
-            ? raw.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-            : customer.cnpj;
+        tomadorCnpj = formatCnpjCpf(customer.cnpj.replace(/\D/g, ''));
+      } else {
+        // 2. Fallback: try client_companies collection
+        const clientCompany = await db.collection('client_companies').findOne({ _id: new ObjectId(tomadorId) });
+        if (clientCompany?.cnpj) {
+          tomadorCnpj = formatCnpjCpf(clientCompany.cnpj.replace(/\D/g, ''));
+        }
       }
-    } else {
-      // Fallback: search by name (tomador) if ID is missing or invalid
+    }
+    
+    // 3. Fallback: search by name (tomador) if ID is missing/invalid or CNPJ still not found
+    if (!tomadorCnpj) {
       const tomadorName = (itemToPrint as any).tomador;
       if (tomadorName) {
+        const nameRegex = new RegExp(`^${tomadorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        
+        // Search in customers
         const customerByName = await db.collection('customers').findOne({ 
           $or: [
-            { razaoSocial: { $regex: new RegExp(`^${tomadorName}$`, 'i') } },
-            { nomeFantasia: { $regex: new RegExp(`^${tomadorName}$`, 'i') } }
+            { razaoSocial: { $regex: nameRegex } },
+            { nomeFantasia: { $regex: nameRegex } }
           ]
         });
         
         if (customerByName?.cnpj) {
-          const raw = customerByName.cnpj.replace(/\D/g, '');
-          tomadorCnpj = raw.length === 14
-            ? raw.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
-            : raw.length === 11
-              ? raw.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-              : customerByName.cnpj;
+          tomadorCnpj = formatCnpjCpf(customerByName.cnpj.replace(/\D/g, ''));
+        } else {
+          // Search in client_companies
+          const companyByName = await db.collection('client_companies').findOne({
+            $or: [
+              { razaoSocial: { $regex: nameRegex } },
+              { nomeFantasia: { $regex: nameRegex } }
+            ]
+          });
+          if (companyByName?.cnpj) {
+            tomadorCnpj = formatCnpjCpf(companyByName.cnpj.replace(/\D/g, ''));
+          }
         }
       }
     }

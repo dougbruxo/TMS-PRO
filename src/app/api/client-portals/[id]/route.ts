@@ -32,7 +32,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
     
     // Updates adicionais permitidos (Switches B2B)
-    const allowedFields = ['freightAccess', 'myFreightsAccess', 'noticeBoardAccess', 'myCompanyAccess', 'clientPartnersAccess', 'fracionadoEnabled', 'armazenagemAccess', 'quoteArmazenagemAccess'];
+    const allowedFields = ['freightAccess', 'myFreightsAccess', 'noticeBoardAccess', 'myCompanyAccess', 'clientPartnersAccess', 'fracionadoEnabled', 'armazenagemAccess', 'quoteArmazenagemAccess', 'chatEnabled'];
     for (const field of allowedFields) {
         if (otherData[field] !== undefined) {
             updatePayload[field] = !!otherData[field];

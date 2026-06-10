@@ -9,6 +9,8 @@ import { AuthProvider } from '@/context/AuthContext';
 import { QueryProvider } from '@/components/QueryProvider';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import { ThemeSyncer } from '@/components/ThemeSyncer';
+import { PagePerformanceTracker } from '@/components/PagePerformanceTracker';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -54,12 +56,13 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${poppins.className} ${outfit.variable}`}>
         <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
         >
-          <script dangerouslySetInnerHTML={{ __html: `
+          <script dangerouslySetInnerHTML={{
+            __html: `
             try {
               let layoutMode = localStorage.getItem('app-layout-mode');
               if (layoutMode) {
@@ -73,16 +76,33 @@ export default function RootLayout({
               let theme = localStorage.getItem('app-theme');
               if (theme) {
                  if (theme.startsWith('"')) theme = JSON.parse(theme);
+                 
+                 let styleEl = document.getElementById('dynamic-theme');
+                 if (!styleEl) {
+                     styleEl = document.createElement('style');
+                     styleEl.id = 'dynamic-theme';
+                     document.head.appendChild(styleEl);
+                 }
+                 let rootCss = '';
+
                  if (typeof theme === 'string' && theme.includes(' ')) {
                     document.documentElement.style.setProperty('--primary', theme);
                     document.documentElement.style.setProperty('--ring', theme);
                  } else if (typeof theme === 'object') {
                     for (const [key, value] of Object.entries(theme)) {
-                       document.documentElement.style.setProperty(key, value);
-                       if (key === '--primary' && !theme['--ring']) {
-                           document.documentElement.style.setProperty('--ring', value);
+                       if (key === '--primary' || key === '--ring') {
+                           document.documentElement.style.setProperty(key, value);
+                       } else {
+                           rootCss += key + ': ' + value + '; ';
                        }
                     }
+                    if (theme['--primary'] && !theme['--ring']) {
+                        document.documentElement.style.setProperty('--ring', theme['--primary']);
+                    }
+                 }
+                 
+                 if (rootCss) {
+                     styleEl.innerHTML = ':root:not(.dark) { ' + rootCss + ' }';
                  }
               }
             } catch (e) {}
@@ -90,6 +110,8 @@ export default function RootLayout({
           <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
             <QueryProvider>
               <AuthProvider>
+                <ThemeSyncer />
+                <PagePerformanceTracker />
                 {children}
                 <Toaster />
               </AuthProvider>

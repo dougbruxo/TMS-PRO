@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -379,14 +379,32 @@ export function VehicleManagement({ vehicles, onDataMutated, isLoading }: Vehicl
                  <FormField control={form.control} name="cubagem" render={({ field }) => (
                     <FormItem>
                         <FormLabel>Cubagem (m³)</FormLabel>
-                        <FormControl><Input placeholder="Ex: 2,5 m³" {...field} /></FormControl>
+                        <FormControl>
+                          <Input 
+                            placeholder="Ex: 2.5" 
+                            value={field.value} 
+                            onChange={(e) => {
+                              const cleaned = e.target.value.replace(/[^0-9.,]/g, '');
+                              field.onChange(cleaned);
+                            }}
+                          />
+                        </FormControl>
                         <FormMessage />
                     </FormItem>
                  )} />
                  <FormField control={form.control} name="peso" render={({ field }) => (
                     <FormItem>
                         <FormLabel>Peso (Kg)</FormLabel>
-                        <FormControl><Input placeholder="Ex: 600 kg" {...field} /></FormControl>
+                        <FormControl>
+                          <Input 
+                            placeholder="Ex: 600" 
+                            value={field.value} 
+                            onChange={(e) => {
+                              const cleaned = e.target.value.replace(/[^0-9.,]/g, '');
+                              field.onChange(cleaned);
+                            }}
+                          />
+                        </FormControl>
                         <FormMessage />
                     </FormItem>
                  )} />

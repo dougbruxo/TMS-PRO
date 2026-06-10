@@ -4,12 +4,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VehicleManagement } from '@/components/VehicleManagement';
 import type { Vehicle } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function ManageVehiclesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -51,18 +52,15 @@ export default function ManageVehiclesPage() {
 
   return (
       <main className="container mx-auto p-4 md:p-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => router.push('/settings')} 
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar
-          </Button>
-          <div className="h-4 w-px bg-border hidden md:block" />
-          <h1 className="text-xl font-bold text-primary whitespace-nowrap">Gerenciar Veículos</h1>
-        </div>
+        <PageHeader
+          icon={<Truck className="h-4 w-4" />}
+          badge="Administração do Sistema"
+          titlePrefix="Gerenciar"
+          titleHighlight="Veículos"
+          description="Adicione, edite ou remova tipos de veículos e suas especificações no sistema."
+          backHref="/settings"
+          backLabel="Voltar para Configurações"
+        />
         
         <VehicleManagement vehicles={vehicles} onDataMutated={fetchData} isLoading={isLoading} />
 

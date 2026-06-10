@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useEffect, useState, useCallback } from 'react';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
 import { useRouter } from 'next/navigation';
 import type { Quote } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -164,21 +165,11 @@ export default function PanoramaPage() {
     return (
         <div className="w-full flex flex-col h-[calc(100vh-4rem)] bg-background overflow-hidden text-sm">
             <div className="flex-none p-4 px-6 border-b bg-card">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => router.push('/dashboard')} 
-                            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-                        >
-                            <ArrowLeft className="h-4 w-4" /> Voltar
-                        </Button>
-                        <div className="h-4 w-px bg-border hidden md:block" />
-                        <h1 className="text-xl font-bold text-primary whitespace-nowrap">Panorama Geográfico</h1>
-                    </div>
-                    
-                    <div className="flex items-center gap-6">
+                <div className="flex justify-between items-center flex-wrap gap-4">
+                    <div className="flex items-center gap-6 flex-wrap">
+                        <div>
+                            <h1 className="text-xl font-bold text-primary whitespace-nowrap">Panorama Geográfico</h1>
+                        </div>
                         <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                             <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
@@ -191,6 +182,10 @@ export default function PanoramaPage() {
                                 {totals.entregas} Entregas Disponíveis
                             </span>
                         </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                        <BackButton href="/dashboard" label="Voltar para Dashboard" className="mb-0" />
                     </div>
                 </div>
             </div>

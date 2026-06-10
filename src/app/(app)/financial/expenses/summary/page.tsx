@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Loader2, DollarSign, TrendingDown, Clock, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
@@ -114,12 +115,12 @@ export default function ExpensesSummaryPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/financial/expenses')} className="mb-8">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Gestão de Despesas
-      </Button>
-      <div className="space-y-2 mb-8">
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
           <h1 className="text-3xl font-bold text-primary">Resumo de Despesas</h1>
           <p className="text-muted-foreground">Analise suas despesas por período e categoria.</p>
+        </div>
+        <BackButton href="/financial/expenses" label="Voltar para Gestão de Despesas" className="mb-0 mt-2" />
       </div>
 
       <Card className="mb-8">

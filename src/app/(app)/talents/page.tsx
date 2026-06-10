@@ -6,8 +6,9 @@ import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { TalentManagement } from '@/components/TalentManagement';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import type { Talent, HiringType, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
@@ -101,19 +102,14 @@ function ManageTalentsContent() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => router.push('/hr')} 
-          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
-        <div className="h-4 w-px bg-border hidden md:block" />
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-primary whitespace-nowrap">Gerenciar Talentos</h1>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary">Gerenciar Talentos</h1>
+          <p className="text-muted-foreground text-sm">
+            Cadastre, analise currículos e gerencie candidatos do seu banco de talentos.
+          </p>
         </div>
+        <BackButton href="/hr" label="Voltar para RH" className="mb-0 mt-2" />
       </div>
       
       <TalentManagement 

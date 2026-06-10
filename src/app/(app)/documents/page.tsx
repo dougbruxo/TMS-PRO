@@ -4,11 +4,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Loader2, FileText } from 'lucide-react';
+import { Loader2, FileText, FileStack } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
+
 
 export default function DocumentsHubPage() {
   const { user, loading: authLoading } = useAuth();
@@ -67,8 +67,9 @@ export default function DocumentsHubPage() {
     },
     {
       title: "Consulta SEFAZ",
-      description: "Consulte o status oficial de CT-e ou MDF-e diretamente na SEFAZ.",
+      description: "Consulte o status oficial de NF-e, CT-e ou MDF-e diretamente na SEFAZ.",
       link: "/documents/consulta-danfe",
+
       icon: <FileText className="h-8 w-8 text-primary" />,
       enabled: true,
     },
@@ -83,44 +84,25 @@ export default function DocumentsHubPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="space-y-2 mb-8">
-        <h1 className="text-3xl font-bold text-primary">Gerador de Documentos</h1>
-        <p className="text-muted-foreground">Selecione o tipo de documento que deseja gerar.</p>
-      </div>
+      <PageHeader
+        icon={<FileStack className="h-4 w-4" />}
+        badge="Central de Documentos"
+        titlePrefix="Gerador de"
+        titleHighlight="Documentos"
+        description="Selecione o tipo de documento que deseja gerar."
+      />
       
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {documentCards.map((card) => {
-          const content = (
-            <Card className={cn("relative flex flex-col w-full h-full transition-all duration-300", card.enabled ? "hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary" : "bg-muted/50 cursor-not-allowed")}>
-                <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                  {card.icon}
-                  <CardTitle className={cn(!card.enabled && "text-muted-foreground", "text-lg")}>{card.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                  <CardDescription>{card.description}</CardDescription>
-                </CardContent>
-                {!card.enabled && (
-                  <CardFooter>
-                    <Button className="w-full" disabled>Em Breve</Button>
-                  </CardFooter>
-                )}
-            </Card>
-          );
-
-          if (card.enabled) {
-            return (
-              <Link key={card.title} href={card.link} className="flex">
-                {content}
-              </Link>
-            );
-          }
-
-          return (
-            <div key={card.title} className="flex">
-              {content}
-            </div>
-          );
-        })}
+        {documentCards.map((card) => (
+          <PremiumNavigationCard
+            key={card.title}
+            title={card.title}
+            description={card.description}
+            href={card.link}
+            icon={card.icon}
+            disabled={!card.enabled}
+          />
+        ))}
       </div>
     </main>
   );

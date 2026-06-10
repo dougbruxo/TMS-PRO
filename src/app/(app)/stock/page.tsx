@@ -5,8 +5,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { StockManagement } from '@/components/StockManagement';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { useToast } from '@/hooks/use-toast';
 import type { StockPosition, StockItem, Quote, StockMovement, ReceivingBatch } from '@/lib/types';
 import { authFetch } from '@/lib/api-client';
@@ -128,24 +129,16 @@ export default function StockPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/dashboard')}
-          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
-        <div className="h-4 w-px bg-border hidden md:block" />
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-primary whitespace-nowrap">Gestão de Estoque</h1>
-          <p className="text-xs text-muted-foreground hidden md:block">Gerencie as posições de paletes e os itens armazenados.</p>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary">Gestão de Estoque</h1>
+          <p className="text-muted-foreground text-sm">Gerencie as posições de paletes e os itens armazenados no armazém.</p>
         </div>
-        <div className="ml-auto">
+        <div className="flex items-center gap-4 mt-2">
           <Button onClick={() => router.push('/stock/expeditions')} variant="outline">
             Painel de Expedição
           </Button>
+          <BackButton href="/dashboard" label="Voltar para Dashboard" className="mb-0" />
         </div>
       </div>
 

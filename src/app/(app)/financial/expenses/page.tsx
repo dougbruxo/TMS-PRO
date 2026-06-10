@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
+import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, ArrowRight, CalendarDays, Check, Archive, ChevronDown, AlertTriangle, BarChart3 } from 'lucide-react';
 import type { Expense } from '@/lib/types';
@@ -275,28 +277,20 @@ export default function ExpensesDashboardPage() {
 
   return (
       <main className="container mx-auto p-4 md:p-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => router.push('/financial')} 
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar
-          </Button>
-          <div className="h-4 w-px bg-border hidden md:block" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary whitespace-nowrap">Gestão de Despesas</h1>
-            <p className="text-xs text-muted-foreground hidden md:block">Visualize e gerencie as despesas da empresa mês a mês.</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
+        <PageHeader
+          icon={<CalendarDays className="h-4 w-4" />}
+          badge="Financeiro"
+          titlePrefix="Gestão de"
+          titleHighlight="Despesas"
+          description="Visualize e gerencie as despesas da empresa mês a mês."
+          backHref="/financial"
+          backLabel="Voltar para Financeiro"
+          actions={
             <Button onClick={() => router.push('/financial/expenses/summary')} size="sm">
                 <BarChart3 className="mr-2 h-4 w-4"/> Ver Resumo
             </Button>
-        </div>
-      </div>
+          }
+        />
          <div className="mb-8">
             <Link href="/financial/expenses/finalized">
                 <Button variant="secondary" size="lg">

@@ -35,19 +35,19 @@ import { authFetch } from '@/lib/api-client';
 
 const vehicleFormSchema = z.object({
   plate: z.string().min(8, 'Placa deve ter 8 caracteres (Ex: AAA-1234).').max(8, 'Placa deve ter 8 caracteres (Ex: AAA-1234).'),
-  brand: z.string().min(1, 'Marca é obrigatória.'),
-  model: z.string().min(1, 'Modelo é obrigatório.'),
-  year: z.coerce.number().min(1900, 'Ano inválido.').max(new Date().getFullYear() + 2, 'Ano inválido.'),
-  city: z.string().min(2, 'Cidade é obrigatória.'),
+  brand: z.string().optional().or(z.literal('')),
+  model: z.string().optional().or(z.literal('')),
+  year: z.preprocess((val) => val === '' || val === undefined || val === null ? undefined : Number(val), z.number().min(1900, 'Ano inválido.').max(new Date().getFullYear() + 2, 'Ano inválido.').optional()),
+  city: z.string().optional().or(z.literal('')),
   state: z.string().length(2, 'UF deve ter 2 caracteres.'),
-  renavam: z.string().min(9, 'Renavam inválido.').max(11, 'Renavam inválido.'),
-  chassis: z.string().min(17, 'Chassi deve ter 17 caracteres.').max(17, 'Chassi deve ter 17 caracteres.'),
-  antt: z.string().min(1, 'ANTT é obrigatório.'),
+  renavam: z.string().optional().or(z.literal('')),
+  chassis: z.string().optional().or(z.literal('')),
+  antt: z.string().min(1, 'Nº ANTT é obrigatório.'),
   category: z.string().min(1, 'Categoria ANTT é obrigatória.'),
-  color: z.string().min(1, 'Cor é obrigatória.'),
+  color: z.string().optional().or(z.literal('')),
   axles: z.coerce.number().min(2, 'Deve ter no mínimo 2 eixos.'),
-  capacity: z.string().min(1, 'Capacidade (kg) é obrigatória.'),
-  cubage: z.string().min(1, 'Cubagem (m³) é obrigatória.'),
+  capacity: z.string().optional().or(z.literal('')),
+  cubage: z.string().optional().or(z.literal('')),
   tara: z.string().min(1, 'Tara (kg) é obrigatória.'),
   type: z.enum(['Próprio', 'Terceiro']),
   bodyType: z.string().min(1, 'Tipo de Carroceria é obrigatória.'),
@@ -438,7 +438,7 @@ export function FleetManagement({ onDataMutated: parentOnDataMutated, quickEditI
                 <FormLabel>{label}</FormLabel>
                 <div className="flex gap-2">
                     <FormControl>
-                        <Input {...field} readOnly placeholder={`Selecione um(a) ${label.toLowerCase()}...`} />
+                        <Input {...field} readOnly tabIndex={-1} placeholder={`Selecione um(a) ${label.toLowerCase()}...`} className="bg-muted/50 cursor-not-allowed select-none" />
                     </FormControl>
                     <Button type="button" variant="outline" onClick={() => handleOpenSelectionDialog(typeKey, label, (item) => {
                         form.setValue(name, item.name);
@@ -518,7 +518,7 @@ export function FleetManagement({ onDataMutated: parentOnDataMutated, quickEditI
                     (searchResults || vehicles)?.map((vehicle) => (
                         <TableRow key={vehicle.id}>
                             <TableCell className="font-medium">{vehicle.plate}</TableCell>
-                            <TableCell>{vehicle.brand} / {vehicle.model}</TableCell>
+                            <TableCell>{(vehicle.brand && vehicle.model) ? `${vehicle.brand} / ${vehicle.model}` : (vehicle.brand || vehicle.model || '—')}</TableCell>
                             <TableCell>{vehicle.type}</TableCell>
                             <TableCell>{vehicle.antt}</TableCell>
                             <TableCell className="text-right space-x-1">
@@ -573,96 +573,225 @@ export function FleetManagement({ onDataMutated: parentOnDataMutated, quickEditI
             <DialogTitle>{editingVehicle ? 'Editar Veículo' : 'Cadastrar Novo Veículo'}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-4">
-              <div className="grid md:grid-cols-3 gap-4">
-                <FormField control={form.control} name="plate" render={({ field }) => ( 
-                    <FormItem>
-                        <FormLabel>Placa</FormLabel>
-                        <FormControl>
-                            <Input placeholder="AAA-1A23" {...field} onChange={handlePlateInputChange} maxLength={8}/>
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem> 
-                )} />
-                <OptionSelector name="brand" label="Marcas" />
-                <OptionSelector name="model" label="Modelos" />
+            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-4">
+              
+              {/* Seção 1: Dados Fiscais Obrigatórios (Top) */}
+              <div className="space-y-4">
+                <h3 className="text-md font-semibold text-primary flex items-center gap-2">
+                  <Truck className="h-4 w-4" /> Dados Fiscais Obrigatórios (SEFAZ / ANTT)
+                </h3>
+                
+                <div className="grid md:grid-cols-4 gap-4">
+                  <FormField control={form.control} name="plate" render={({ field }) => ( 
+                      <FormItem>
+                          <FormLabel>Placa *</FormLabel>
+                          <FormControl>
+                              <Input placeholder="AAA-1A23" {...field} onChange={handlePlateInputChange} maxLength={8} className="font-mono uppercase"/>
+                          </FormControl>
+                          <FormMessage />
+                      </FormItem> 
+                  )} />
+                  <FormField control={form.control} name="state" render={({ field }) => ( 
+                      <FormItem>
+                          <FormLabel>UF *</FormLabel>
+                          <FormControl>
+                              <Input placeholder="Ex: SP" maxLength={2} {...field} className="uppercase" />
+                          </FormControl>
+                          <FormMessage />
+                      </FormItem> 
+                  )} />
+                  <FormField control={form.control} name="axles" render={({ field }) => ( 
+                      <FormItem>
+                          <FormLabel>Nº de Eixos *</FormLabel>
+                          <FormControl>
+                              <Input type="number" placeholder="Ex: 3" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                      </FormItem> 
+                  )} />
+                  <FormField control={form.control} name="antt" render={({ field }) => ( 
+                      <FormItem>
+                          <FormLabel>Nº ANTT (Veículo) *</FormLabel>
+                          <FormControl>
+                              <Input placeholder="Registro ANTT" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                      </FormItem> 
+                  )} />
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  <OptionSelector name="vehicleType" label="Tipo de Rodado" />
+                  <OptionSelector name="bodyType" label="Tipo de Carroceria" />
+                  <FormField control={form.control} name="tara" render={({ field }) => ( 
+                      <FormItem>
+                          <FormLabel>Tara (kg) *</FormLabel>
+                          <FormControl>
+                              <Input placeholder="Ex: 15000" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                      </FormItem> 
+                  )} />
+                </div>
               </div>
-              <div className="grid md:grid-cols-3 gap-4">
-                <FormField control={form.control} name="year" render={({ field }) => ( <FormItem><FormLabel>Ano Fab.</FormLabel><FormControl><Input type="number" placeholder="Ex: 2023" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <OptionSelector name="color" label="Cores" />
-                <FormField control={form.control} name="axles" render={({ field }) => ( <FormItem><FormLabel>Nº de Eixos</FormLabel><FormControl><Input type="number" placeholder="Ex: 3" {...field} /></FormControl><FormMessage /></FormItem> )} />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="city" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input placeholder="Ex: Guarulhos" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  <FormField control={form.control} name="state" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input placeholder="Ex: SP" maxLength={2} {...field} /></FormControl><FormMessage /></FormItem> )} />
-              </div>
-              <div className="grid md:grid-cols-3 gap-4">
-                <OptionSelector name="bodyType" label="Tipo de Carroceria" />
-                <FormField control={form.control} name="capacity" render={({ field }) => ( <FormItem><FormLabel>Capacidade (kg)</FormLabel><FormControl><Input placeholder="Ex: 25000" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="tara" render={({ field }) => ( <FormItem><FormLabel>Tara (kg)</FormLabel><FormControl><Input placeholder="Ex: 15000" {...field} /></FormControl><FormMessage /></FormItem> )} />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="cubage" render={({ field }) => ( <FormItem><FormLabel>Cubagem (m³)</FormLabel><FormControl><Input placeholder="Ex: 90" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <OptionSelector name="vehicleType" label="Tipo de Rodado" />
-              </div>
-               <Separator />
-               <h3 className="text-md font-medium">Documentação e Proprietário</h3>
-               <div className="grid md:grid-cols-3 gap-4">
-                <FormField control={form.control} name="renavam" render={({ field }) => ( <FormItem><FormLabel>Renavam</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="chassis" render={({ field }) => ( <FormItem><FormLabel>Chassi</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="antt" render={({ field }) => ( <FormItem><FormLabel>Nº ANTT</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="type" render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Tipo de Vínculo</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                            <SelectContent><SelectItem value="Terceiro">Terceiro (Agregado)</SelectItem><SelectItem value="Próprio">Próprio</SelectItem></SelectContent>
-                        </Select>
-                        <FormMessage/>
-                    </FormItem>
-                )} />
+
+              <Separator />
+
+              {/* Seção 2: Tipo de Vínculo e Proprietário */}
+              <div className="space-y-4">
+                <h3 className="text-md font-semibold text-primary flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" /> Vínculo e Proprietário
+                </h3>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="type" render={({ field }) => (
+                      <FormItem>
+                          <FormLabel>Tipo de Vínculo *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                              <SelectContent>
+                                  <SelectItem value="Próprio">Próprio</SelectItem>
+                                  <SelectItem value="Terceiro">Terceiro (Agregado/TAC)</SelectItem>
+                              </SelectContent>
+                          </Select>
+                          <FormMessage/>
+                      </FormItem>
+                  )} />
+                  <OptionSelector name="category" label="Categorias ANTT" />
+                </div>
+
                 {watchType === 'Terceiro' && (
-                  <FormItem>
-                      <FormLabel>Proprietário</FormLabel>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroup value={ownerSelectionType} onValueChange={(v) => setOwnerSelectionType(v as any)} className="flex">
-                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="driver" id="owner-driver"/></FormControl><Label htmlFor="owner-driver">Motorista</Label></FormItem>
-                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="customer" id="owner-customer"/></FormControl><Label htmlFor="owner-customer">Cliente</Label></FormItem>
-                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="owner" id="owner-other"/></FormControl><Label htmlFor="owner-other">Outros</Label></FormItem>
-                        </RadioGroup>
-                      </div>
-                      <div className="flex gap-2">
-                        <Input readOnly value={form.watch('ownerName') || ''} placeholder="Selecione um proprietário..."/>
-                        <Button type="button" variant="outline" onClick={handleOpenSearchDialog}>Buscar</Button>
-                        <Button type="button" variant="outline" onClick={handleOpenNewOwnerDialog}>Novo</Button>
-                      </div>
-                  </FormItem>
+                  <div className="border rounded-2xl p-4 bg-muted/10 space-y-4 border-amber-500/20">
+                      <FormItem>
+                          <FormLabel className="text-amber-600">Proprietário do Veículo *</FormLabel>
+                          <div className="flex items-center space-x-4 mb-2">
+                            <RadioGroup value={ownerSelectionType} onValueChange={(v) => setOwnerSelectionType(v as any)} className="flex gap-4">
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="driver" id="owner-driver"/><Label htmlFor="owner-driver" className="cursor-pointer">Motorista</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="customer" id="owner-customer"/><Label htmlFor="owner-customer" className="cursor-pointer">Cliente</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="owner" id="owner-other"/><Label htmlFor="owner-other" className="cursor-pointer">Outros</Label></div>
+                            </RadioGroup>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input readOnly tabIndex={-1} value={form.watch('ownerName') || ''} placeholder="Selecione o proprietário cadastrado..." className="bg-muted/50 cursor-not-allowed select-none"/>
+                            <Button type="button" variant="outline" onClick={handleOpenSearchDialog}>Buscar</Button>
+                            <Button type="button" variant="outline" onClick={handleOpenNewOwnerDialog}>Novo</Button>
+                          </div>
+                      </FormItem>
+                  </div>
                 )}
               </div>
-               <OptionSelector name="category" label="Categorias ANTT" />
+
               <Separator />
-              <h3 className="text-md font-medium">Upload de Documentos</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <Label>CRLV do Veículo</Label>
-                      <div className="flex items-center gap-2">
-                          <Button type="button" variant="outline" className="w-full justify-start" onClick={() => triggerUpload('crlv')}>
-                            <Upload className="mr-2 h-4 w-4" /> {crlvFile ? crlvFile.name : 'Carregar CRLV'}
-                          </Button>
-                          {form.watch('crlvDocumentUrl') && !crlvFile && (<a href={form.watch('crlvDocumentUrl')} target="_blank" rel="noopener noreferrer"><Button type="button" variant="secondary" size="icon"><Eye className="h-4 w-4" /></Button></a>)}
-                      </div>
+
+              {/* Seção 3: Seção Complementar Opcional (Colapsável) */}
+              <details className="group border border-border rounded-2xl p-4 bg-muted/20">
+                <summary className="cursor-pointer font-semibold text-sm text-muted-foreground hover:text-primary select-none flex items-center justify-between">
+                  <span>⚙️ Informações Complementares (Opcionais)</span>
+                  <span className="transition group-open:rotate-180">
+                    <ChevronsUpDown className="h-4 w-4" />
+                  </span>
+                </summary>
+                
+                <div className="space-y-4 pt-4">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <OptionSelector name="brand" label="Marcas" />
+                    <OptionSelector name="model" label="Modelos" />
+                    <FormField control={form.control} name="year" render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel>Ano Fab.</FormLabel>
+                          <FormControl><Input type="number" placeholder="Ex: 2023" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem> 
+                    )} />
                   </div>
-                   <div className="space-y-2">
-                      <Label>Comprovativo ANTT</Label>
-                       <div className="flex items-center gap-2">
-                          <Button type="button" variant="outline" className="w-full justify-start" onClick={() => triggerUpload('antt')}>
-                            <Upload className="mr-2 h-4 w-4" /> {anttFile ? anttFile.name : 'Carregar ANTT'}
-                          </Button>
-                          {form.watch('anttDocumentUrl') && !anttFile && (<a href={form.watch('anttDocumentUrl')} target="_blank" rel="noopener noreferrer"><Button type="button" variant="secondary" size="icon"><Eye className="h-4 w-4" /></Button></a>)}
-                      </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <OptionSelector name="color" label="Cores" />
+                    <FormField control={form.control} name="city" render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel>Cidade</FormLabel>
+                          <FormControl><Input placeholder="Ex: Guarulhos" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem> 
+                    )} />
                   </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="renavam" render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel>Renavam</FormLabel>
+                          <FormControl><Input placeholder="Código Renavam" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem> 
+                    )} />
+                    <FormField control={form.control} name="chassis" render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel>Chassi</FormLabel>
+                          <FormControl><Input placeholder="Chassi do veículo" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem> 
+                    )} />
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="capacity" render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel>Capacidade (kg)</FormLabel>
+                          <FormControl>
+                              <Input placeholder="Ex: 25000" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem> 
+                    )} />
+                    <FormField control={form.control} name="cubage" render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel>Cubagem (m³)</FormLabel>
+                          <FormControl>
+                              <Input placeholder="Ex: 90" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem> 
+                    )} />
+                  </div>
+                </div>
+              </details>
+
+              <Separator />
+
+              {/* Seção 4: Documentos de Auditoria (Uploads) */}
+              <div className="space-y-4">
+                <h3 className="text-md font-semibold text-primary flex items-center gap-2">
+                  <Upload className="h-4 w-4" /> Documentação de Auditoria (Opcional)
+                </h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>CRLV do Veículo</Label>
+                        <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" className="w-full justify-start bg-background" onClick={() => triggerUpload('crlv')}>
+                              <Upload className="mr-2 h-4 w-4" /> {crlvFile ? crlvFile.name : 'Carregar CRLV'}
+                            </Button>
+                            {form.watch('crlvDocumentUrl') && !crlvFile && (
+                              <a href={form.watch('crlvDocumentUrl')} target="_blank" rel="noopener noreferrer">
+                                <Button type="button" variant="secondary" size="icon"><Eye className="h-4 w-4" /></Button>
+                              </a>
+                            )}
+                        </div>
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Comprovativo ANTT</Label>
+                         <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" className="w-full justify-start bg-background" onClick={() => triggerUpload('antt')}>
+                              <Upload className="mr-2 h-4 w-4" /> {anttFile ? anttFile.name : 'Carregar ANTT'}
+                            </Button>
+                            {form.watch('anttDocumentUrl') && !anttFile && (
+                              <a href={form.watch('anttDocumentUrl')} target="_blank" rel="noopener noreferrer">
+                                <Button type="button" variant="secondary" size="icon"><Eye className="h-4 w-4" /></Button>
+                              </a>
+                            )}
+                        </div>
+                    </div>
+                </div>
               </div>
 
               <DialogFooter className="pt-4">

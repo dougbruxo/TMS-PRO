@@ -89,7 +89,7 @@ export function LoginForm({ onLogin, prefilledIdentifier }: LoginFormProps) {
           name="identifier"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>E-mail ou CPF</FormLabel>
+              <FormLabel className="text-primary font-semibold">E-mail ou CPF</FormLabel>
               <FormControl>
                 <Input placeholder="seu@email.com ou 123.456.789-00" {...field} />
               </FormControl>
@@ -102,7 +102,7 @@ export function LoginForm({ onLogin, prefilledIdentifier }: LoginFormProps) {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Senha</FormLabel>
+              <FormLabel className="text-primary font-semibold">Senha</FormLabel>
               <FormControl>
                 <Input type="password" placeholder="Sua senha" {...field} />
               </FormControl>

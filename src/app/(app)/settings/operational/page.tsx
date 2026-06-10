@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
 
 export default function OperationalSettingsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshPricingSettings, refreshNotificationCounts } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -68,6 +68,12 @@ export default function OperationalSettingsPage() {
             body: JSON.stringify({ operational: settings }),
         });
         if (!response.ok) throw new Error("Failed to update settings");
+        if (refreshPricingSettings) {
+            await refreshPricingSettings();
+        }
+        if (refreshNotificationCounts) {
+            await refreshNotificationCounts();
+        }
         toast({ title: "Sucesso!", description: "Configurações operacionais atualizadas." });
         await fetchSettings();
     } catch (error: any) {

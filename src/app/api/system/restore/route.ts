@@ -78,24 +78,46 @@ export async function POST(request: Request) {
         
         const { db } = await connectToDatabase();
 
-        const session = db.client.startSession();
         try {
-            await session.withTransaction(async () => {
+            const session = db.client.startSession();
+            try {
+                await session.withTransaction(async () => {
+                    for (const collectionName of collectionsToRestore) {
+                        if (backupData[collectionName]) {
+                            const collection = db.collection(collectionName);
+                            // Clear the collection before inserting new data
+                            await collection.deleteMany({}, { session });
+                            // Process documents to convert string IDs to ObjectIds
+                            const documentsToInsert = processDocuments(backupData[collectionName]);
+                            if(documentsToInsert.length > 0) {
+                                await collection.insertMany(documentsToInsert, { session });
+                            }
+                        }
+                    }
+                });
+            } finally {
+                await session.endSession();
+            }
+        } catch (transactionError: any) {
+            const isIllegalOperation = transactionError.code === 20 || 
+                (transactionError.message && transactionError.message.includes('replica set'));
+            
+            if (isIllegalOperation) {
+                console.warn('MongoDB does not support transactions (standalone instance). Falling back to sequential restore...');
+                // Run restore sequentially without transaction session
                 for (const collectionName of collectionsToRestore) {
                     if (backupData[collectionName]) {
                         const collection = db.collection(collectionName);
-                        // Clear the collection before inserting new data
-                        await collection.deleteMany({}, { session });
-                        // Process documents to convert string IDs to ObjectIds
+                        await collection.deleteMany({});
                         const documentsToInsert = processDocuments(backupData[collectionName]);
-                        if(documentsToInsert.length > 0) {
-                            await collection.insertMany(documentsToInsert, { session });
+                        if (documentsToInsert.length > 0) {
+                            await collection.insertMany(documentsToInsert);
                         }
                     }
                 }
-            });
-        } finally {
-            await session.endSession();
+            } else {
+                throw transactionError;
+            }
         }
 
         return NextResponse.json({ message: 'Sistema restaurado com sucesso.' });

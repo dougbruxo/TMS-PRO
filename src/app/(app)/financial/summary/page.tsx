@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Loader2, DollarSign, TrendingDown, Scale, TrendingUp, AlertTriangle, Printer, FileCheck } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, parse } from 'date-fns';
@@ -177,9 +178,7 @@ export default function FinancialSummaryPage() {
             <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="mr-2 h-4 w-4" /> Imprimir Relatório
             </Button>
-            <Button variant="outline" onClick={() => router.push('/financial')}>
-                &larr; Voltar
-            </Button>
+            <BackButton href="/financial" className="mb-0" />
         </div>
       </div>
 

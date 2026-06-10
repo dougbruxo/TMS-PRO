@@ -7,10 +7,11 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle, Search, History, Edit, Calendar as CalendarIcon, FileText, ChevronDown, ChevronRight, Layers, MoreVertical, Share2, Mail, DollarSign, Printer, Trash2, Banknote, HandCoins, AlertTriangle, MessageSquare, FilePlus, Save } from 'lucide-react';
+import { Loader2, CheckCircle, Search, History, Edit, Calendar as CalendarIcon, FileText, ChevronDown, ChevronRight, Layers, MoreVertical, Share2, Mail, DollarSign, Printer, Trash2, Banknote, HandCoins, AlertTriangle, MessageSquare, FilePlus, Save, Truck, User2, Building2, Briefcase, Move } from 'lucide-react';
 import type { Quote, PaymentStatus, QuoteHistoryEvent, BillingHistoryEvent, QuoteStatus, Invoice, SharedItem } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, isPast, isSameDay, parse, isValid } from 'date-fns';
@@ -21,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { printInvoice, generateWhatsAppLink } from '@/lib/print';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { WhatsAppIcon } from '@/components/WhatsAppIcon';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ShareItemDialog } from '@/components/chat/ShareItemDialog';
@@ -77,6 +78,329 @@ export default function BillingMonthPage() {
   const [isSearchingGroup, setIsSearchingGroup] = useState(false);
   const [groupSearchResults, setGroupSearchResults] = useState<Quote[]>([]);
   const [selectedGroupQuoteIds, setSelectedGroupQuoteIds] = useState<string[]>([]);
+
+  // Link / Relacionamento States
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [itemToLink, setItemToLink] = useState<DisplayItem | null>(null);
+  const [linkType, setLinkType] = useState<"driver" | "quote" | "talent" | "customer" | "owner" | null>(null);
+  const [linkItems, setLinkItems] = useState<any[]>([]);
+  const [isLoadingLinkItems, setIsLoadingLinkItems] = useState(false);
+  const [selectedLinkId, setSelectedLinkId] = useState<string>('');
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkSearchTerm, setLinkSearchTerm] = useState('');
+  
+  // Entity Viewer States
+  const [viewingDriver, setViewingDriver] = useState<any>(null);
+  const [isDriverViewOpen, setIsDriverViewOpen] = useState(false);
+  const [viewingTalent, setViewingTalent] = useState<any>(null);
+  const [isTalentViewOpen, setIsTalentViewOpen] = useState(false);
+  const [viewingQuote, setViewingQuote] = useState<any>(null);
+  const [isQuoteViewOpen, setIsQuoteViewOpen] = useState(false);
+  const [viewingCustomer, setViewingCustomer] = useState<any>(null);
+  const [isCustomerViewOpen, setIsCustomerViewOpen] = useState(false);
+  const [viewingOwner, setViewingOwner] = useState<any>(null);
+  const [isOwnerViewOpen, setIsOwnerViewOpen] = useState(false);
+  const [isLoadingEntity, setIsLoadingEntity] = useState(false);
+
+  // Manual Invoice State
+  const [isManualInvoiceOpen, setIsManualInvoiceOpen] = useState(false);
+  const [manualTomador, setManualTomador] = useState('');
+  const [manualTomadorId, setManualTomadorId] = useState('');
+  const [manualCustomerResults, setManualCustomerResults] = useState<any[]>([]);
+  const [isLoadingManualCustomers, setIsLoadingManualCustomers] = useState(false);
+  const [manualTotalValue, setManualTotalValue] = useState(0);
+  const [maskedManualTotalValue, setMaskedManualTotalValue] = useState('R$ 0,00');
+  const [manualDueDate, setManualDueDate] = useState('');
+
+  const handleOpenLinkDialog = (item: DisplayItem, type: 'driver' | 'quote' | 'talent' | 'customer' | 'owner') => {
+       setItemToLink(item);
+       setLinkType(type);
+       setIsLinkDialogOpen(true);
+       setLinkSearchTerm('');
+       setLinkItems([]);
+       setSelectedLinkId('');
+       setIsLoadingLinkItems(false);
+  };
+
+  const handleSearchLinkItems = async () => {
+       if (!linkSearchTerm.trim() || !linkType) return;
+       setIsLoadingLinkItems(true);
+       setSelectedLinkId('');
+       try {
+           let res;
+           if (linkType === 'driver') res = await authFetch(`/api/drivers?limit=20&term=${encodeURIComponent(linkSearchTerm)}`);
+           else if (linkType === 'quote') res = await authFetch(`/api/quotes?limit=20&term=${encodeURIComponent(linkSearchTerm)}&excludeStatus=Aberta`);
+           else if (linkType === 'talent') res = await authFetch(`/api/talents?limit=20&term=${encodeURIComponent(linkSearchTerm)}`);
+           else if (linkType === 'customer') res = await authFetch(`/api/customers?limit=20&term=${encodeURIComponent(linkSearchTerm)}`);
+           else if (linkType === 'owner') res = await authFetch(`/api/owners`);
+           
+           if (res && res.ok) {
+                const data = await res.json();
+                if (linkType === 'quote' && data.quotes) {
+                    setLinkItems(data.quotes);
+                } else if (linkType === 'driver' && data.drivers) {
+                    setLinkItems(data.drivers);
+                } else if (linkType === 'owner') {
+                    const searchLower = linkSearchTerm.toLowerCase();
+                    setLinkItems(data.filter((o: any) => o.name?.toLowerCase().includes(searchLower) || o.document?.includes(linkSearchTerm)));
+                } else {
+                    setLinkItems(data);
+                }
+           }
+       } catch(e) {
+           toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao buscar opções' });
+       } finally {
+           setIsLoadingLinkItems(false);
+       }
+  };
+
+  const handleLinkSelect = async () => {
+      if (!itemToLink || !linkType || !selectedLinkId || !user) return;
+      setIsLinking(true);
+      
+      const selectedItem = linkItems.find(i => i.id === selectedLinkId);
+      let updates: any = {};
+      if (linkType === 'driver') {
+          updates = { driverId: selectedLinkId, driverName: selectedItem?.name || '' };
+      } else if (linkType === 'quote') {
+          updates = { quoteId: selectedLinkId, quoteCode: selectedItem?.quoteCode || '' };
+      } else if (linkType === 'talent') {
+          updates = { talentId: selectedLinkId, talentName: selectedItem?.name || '' };
+      } else if (linkType === 'customer') {
+          updates = { customerId: selectedLinkId, customerName: selectedItem?.razaoSocial || '' };
+      } else if (linkType === 'owner') {
+          updates = { ownerId: selectedLinkId, ownerName: selectedItem?.name || '' };
+      }
+
+      const endpoint = itemToLink.isInvoice ? `/api/billing/invoices/${itemToLink.id}` : `/api/quotes/${itemToLink.id}`;
+      
+      try {
+          const res = await authFetch(endpoint, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...updates, user: { id: user.id, username: user.username } })
+          });
+          
+          if (!res.ok) {
+               const errorData = await res.json();
+               throw new Error(errorData.message || 'Falha ao vincular.');
+          }
+          toast({ title: 'Sucesso', description: 'Vínculo realizado com sucesso.' });
+          setIsLinkDialogOpen(false);
+          await fetchAllData();
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: error.message });
+      } finally {
+          setIsLinking(false);
+      }
+  };
+
+  const handleUnlink = async (item: DisplayItem, type: string) => {
+    if (!user) return;
+    setIsLinking(true);
+
+    let updates: any = {};
+    if (type === 'driver') {
+        updates = { driverId: null, driverName: null };
+    } else if (type === 'quote') {
+        updates = { quoteId: null, quoteCode: null };
+    } else if (type === 'talent') {
+        updates = { talentId: null, talentName: null };
+    } else if (type === 'customer') {
+        updates = { customerId: null, customerName: null };
+    } else if (type === 'owner') {
+        updates = { ownerId: null, ownerName: null };
+    }
+
+    const endpoint = item.isInvoice ? `/api/billing/invoices/${item.id}` : `/api/quotes/${item.id}`;
+    
+    try {
+        const res = await authFetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...updates, user: { id: user.id, username: user.username } })
+        });
+        
+        if (!res.ok) {
+             const errorData = await res.json();
+             throw new Error(errorData.message || 'Falha ao desvincular.');
+        }
+        toast({ title: 'Sucesso', description: 'Vínculo removido com sucesso.' });
+        await fetchAllData();
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Erro', description: error.message });
+    } finally {
+        setIsLinking(false);
+    }
+  };
+
+  const handleViewDriver = useCallback(async (driverId: string) => {
+      setIsLoadingEntity(true);
+      try {
+          const res = await authFetch(`/api/drivers/${driverId}`);
+          if (!res.ok) throw new Error('Falha ao carregar motorista.');
+          const driver = await res.json();
+          setViewingDriver(driver);
+          setIsDriverViewOpen(true);
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+          setIsLoadingEntity(false);
+      }
+  }, [toast]);
+
+  const handleViewTalent = useCallback(async (talentId: string) => {
+      setIsLoadingEntity(true);
+      try {
+          const res = await authFetch(`/api/talents/${talentId}`);
+          if (!res.ok) throw new Error('Falha ao carregar talento.');
+          const talent = await res.json();
+          setViewingTalent(talent);
+          setIsTalentViewOpen(true);
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+          setIsLoadingEntity(false);
+      }
+  }, [toast]);
+
+  const handleViewQuote = useCallback(async (quoteId: string) => {
+      setIsLoadingEntity(true);
+      try {
+          const res = await authFetch(`/api/quotes/${quoteId}`);
+          if (!res.ok) throw new Error('Falha ao carregar cotação.');
+          const quote = await res.json();
+          setViewingQuote(quote);
+          setIsQuoteViewOpen(true);
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+          setIsLoadingEntity(false);
+      }
+  }, [toast]);
+
+  const handleViewCustomer = useCallback(async (customerId: string) => {
+      setIsLoadingEntity(true);
+      try {
+          const res = await authFetch(`/api/customers/${customerId}`);
+          if (!res.ok) throw new Error('Falha ao carregar cliente/fornecedor.');
+          const customer = await res.json();
+          setViewingCustomer(customer);
+          setIsCustomerViewOpen(true);
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+          setIsLoadingEntity(false);
+      }
+  }, [toast]);
+
+  // Busca cliente pelo nome (fallback para cotações sem tomadorId)
+  const handleViewCustomerByName = useCallback(async (name: string) => {
+      setIsLoadingEntity(true);
+      try {
+          const res = await authFetch(`/api/customers?limit=1&term=${encodeURIComponent(name)}`);
+          if (!res.ok) throw new Error('Falha ao buscar cliente.');
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.customers || data.data || []);
+          const customer = list[0];
+          if (customer) {
+              setViewingCustomer(customer);
+              setIsCustomerViewOpen(true);
+          } else {
+              toast({ title: 'Não encontrado', description: `Nenhum cadastro encontrado para "${name}".` });
+          }
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+          setIsLoadingEntity(false);
+      }
+  }, [toast]);
+
+  const handleViewOwner = useCallback(async (ownerId: string) => {
+      setIsLoadingEntity(true);
+      try {
+          const res = await authFetch(`/api/owners/${ownerId}`);
+          if (!res.ok) throw new Error('Falha ao carregar proprietário.');
+          const owner = await res.json();
+          setViewingOwner(owner);
+          setIsOwnerViewOpen(true);
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+          setIsLoadingEntity(false);
+      }
+  }, [toast]);
+
+  const handleManualValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value.replace(/\D/g, '');
+      if (!rawValue) {
+          setManualTotalValue(0);
+          setMaskedManualTotalValue(formatCurrency(0));
+          return;
+      }
+      const numericValue = Number(rawValue) / 100;
+      setManualTotalValue(numericValue);
+      setMaskedManualTotalValue(formatCurrency(numericValue));
+  };
+
+  const handleSearchManualCustomers = async (term: string) => {
+      if (!term.trim()) {
+          setManualCustomerResults([]);
+          return;
+      }
+      setIsLoadingManualCustomers(true);
+      try {
+          const res = await authFetch(`/api/customers?limit=10&term=${encodeURIComponent(term)}`);
+          if (res && res.ok) {
+              const data = await res.json();
+              setManualCustomerResults(Array.isArray(data) ? data : (data.customers || data.data || []));
+          }
+      } catch (e) {
+          console.error('Error fetching customers:', e);
+      } finally {
+          setIsLoadingManualCustomers(false);
+      }
+  };
+
+  const handleCreateManualInvoice = async () => {
+      if (!manualTomador.trim() || manualTotalValue <= 0 || !manualDueDate || !user) {
+          toast({ variant: 'destructive', title: 'Erro', description: 'Preencha todos os campos corretamente.' });
+          return;
+      }
+      setIsSubmitting(true);
+      try {
+          const payload = {
+              quoteIds: [],
+              user: { id: user.id, username: user.username },
+              totalValue: manualTotalValue,
+              tomador: manualTomador.trim(),
+              tomadorId: manualTomadorId || undefined,
+              billingDueDate: new Date(`${manualDueDate}T12:00:00Z`).toISOString()
+          };
+          const res = await authFetch('/api/billing/invoices', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+              const errorData = await res.json();
+              throw new Error(errorData.message || 'Falha ao criar cobrança.');
+          }
+          toast({ title: 'Sucesso!', description: 'Cobrança manual criada com sucesso.' });
+          setIsManualInvoiceOpen(false);
+          setManualTomador('');
+          setManualTomadorId('');
+          setManualTotalValue(0);
+          setMaskedManualTotalValue('R$ 0,00');
+          setManualDueDate('');
+          setManualCustomerResults([]);
+          await fetchAllData();
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Erro', description: error.message });
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
 
   const fetchAllData = useCallback(async () => {
     setIsDataLoading(true);
@@ -163,6 +487,39 @@ export default function BillingMonthPage() {
         
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Erro ao Agrupar', description: e.message });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateSingleInvoice = async (quote: Quote) => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+        const totalValue = (quote.valorFinal || 0) + (quote.icmsValor || 0);
+        const billingDueDate = quote.billingDueDate || new Date().toISOString();
+
+        const invoicePayload = {
+            quoteIds: [quote.id],
+            user: { id: user.id, username: user.username },
+            totalValue,
+            tomador: quote.tomador,
+            tomadorId: quote.tomadorId,
+            billingDueDate,
+        };
+        
+        const response = await authFetch('/api/billing/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(invoicePayload),
+        });
+        
+        if (!response.ok) throw new Error('Falha ao gerar cobrança para esta cotação.');
+        
+        toast({ title: 'Sucesso!', description: `Cobrança gerada com sucesso para a cotação ${quote.quoteCode || ''}.` });
+        fetchAllData();
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Erro ao Gerar Cobrança', description: e.message });
     } finally {
         setIsSubmitting(false);
     }
@@ -301,9 +658,24 @@ export default function BillingMonthPage() {
         setIsEditDialogOpen(true);
     };
 
-  const handleOpenHistoryDialog = (item: DisplayItem) => {
-    setManagedItem(item);
-    setIsHistoryDialogOpen(true);
+  const handleOpenHistoryDialog = async (item: DisplayItem) => {
+    if (!item.isInvoice) {
+      setIsLoadingEntity(true);
+      try {
+        const res = await authFetch(`/api/quotes/${item.id}`);
+        if (!res.ok) throw new Error('Falha ao carregar histórico da cotação.');
+        const quote = await res.json();
+        setManagedItem({ ...quote, isInvoice: false });
+        setIsHistoryDialogOpen(true);
+      } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Erro', description: e.message });
+      } finally {
+        setIsLoadingEntity(false);
+      }
+    } else {
+      setManagedItem(item);
+      setIsHistoryDialogOpen(true);
+    }
   }
 
   const handleOpenShareDialog = (item: DisplayItem) => {
@@ -511,13 +883,12 @@ export default function BillingMonthPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => router.push('/financial/billing')} className="mb-8">
-        &larr; Voltar para o Painel de Cobranças
-      </Button>
-
-      <div className="space-y-2 mb-8">
-        <h1 className="text-3xl font-bold text-primary capitalize">{monthName}</h1>
-        <p className="text-muted-foreground">Gerencie o status de pagamento das faturas e cotações.</p>
+      <div className="flex justify-between items-start flex-wrap gap-4 mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-primary capitalize">{monthName}</h1>
+          <p className="text-muted-foreground">Gerencie o status de pagamento das faturas e cotações.</p>
+        </div>
+        <BackButton href="/financial/billing" label="Voltar para o Painel de Cobranças" className="mb-0 mt-2" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -578,10 +949,13 @@ export default function BillingMonthPage() {
                 <Button variant={statusFilter === 'Pago' ? 'default' : 'outline'} onClick={() => setStatusFilter('Pago')}>Pagas</Button>
               </div>
           </div>
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end gap-2 pt-4">
+             <Button variant="outline" onClick={() => setIsManualInvoiceOpen(true)}>
+                <FilePlus className="mr-2 h-4 w-4"/> Nova Cobrança Manual
+             </Button>
              <Button onClick={() => setIsGroupingDialogOpen(true)}>
-                <FilePlus className="mr-2 h-4 w-4"/> Agrupar Cobrança
-            </Button>
+                <Layers className="mr-2 h-4 w-4"/> Agrupar Cobrança
+             </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -594,6 +968,7 @@ export default function BillingMonthPage() {
                     <TableRow>
                         <TableHead>Fatura / Cotação</TableHead>
                         <TableHead>Tomador</TableHead>
+                        <TableHead>Relacionados</TableHead>
                         <TableHead>Vencimento</TableHead>
                         <TableHead>Valor Total</TableHead>
                         <TableHead>Saldo Devedor</TableHead>
@@ -631,6 +1006,113 @@ export default function BillingMonthPage() {
                                     )}
                                 </TableCell>
                                 <TableCell>{item.tomador}</TableCell>
+                                <TableCell>
+                                   <div className="flex items-center flex-wrap gap-2">
+                                     {/* Tomador — ícone de empresa sempre visível quando há nome */}
+                                     {item.tomador ? (
+                                       <button
+                                         onClick={() => item.tomadorId
+                                           ? handleViewCustomer(item.tomadorId)
+                                           : handleViewCustomerByName(item.tomador)
+                                         }
+                                         disabled={isLoadingEntity}
+                                         className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                                         title={`Empresa (Tomador): ${item.tomador}`}
+                                       >
+                                         <Building2 className="h-3.5 w-3.5" />
+                                       </button>
+                                     ) : null}
+
+                                     {/* Cotação Relacionada (apenas para Faturas) */}
+                                     {isInvoice && item.quoteId ? (
+                                       <div className="inline-flex items-center gap-1 group">
+                                         <button
+                                           onClick={() => handleViewQuote(item.quoteId!)}
+                                           disabled={isLoadingEntity}
+                                           className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors cursor-pointer"
+                                           title={`Cotação Vinculada: ${item.quoteCode || 'N/A'}`}
+                                         >
+                                           <Layers className="h-3.5 w-3.5" />
+                                         </button>
+                                         <button 
+                                           className="h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted" 
+                                           onClick={() => handleUnlink(item, 'quote')} 
+                                           title="Remover Vínculo de Cotação"
+                                         >
+                                           <Trash2 className="h-2.5 w-2.5 text-destructive" />
+                                         </button>
+                                       </div>
+                                     ) : null}
+                                     
+                                     {/* Cliente Relacionado (Vínculo Manual) */}
+                                     {item.customerId ? (
+                                       <div className="inline-flex items-center gap-1 group">
+                                         <button
+                                           onClick={() => handleViewCustomer(item.customerId!)}
+                                           disabled={isLoadingEntity}
+                                           className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                           title={`Cliente Vinculado Manualmente: ${item.customerName || 'N/A'}`}
+                                         >
+                                           <Building2 className="h-3.5 w-3.5" />
+                                         </button>
+                                         <button 
+                                           className="h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted" 
+                                           onClick={() => handleUnlink(item, 'customer')} 
+                                           title="Remover Vínculo de Cliente"
+                                         >
+                                           <Trash2 className="h-2.5 w-2.5 text-destructive" />
+                                         </button>
+                                       </div>
+                                     ) : null}
+
+                                     {/* Proprietário Relacionado (Vínculo Manual) */}
+                                     {item.ownerId ? (
+                                       <div className="inline-flex items-center gap-1 group">
+                                         <button
+                                           onClick={() => handleViewOwner(item.ownerId!)}
+                                           disabled={isLoadingEntity}
+                                           className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+                                           title={`Proprietário Vinculado: ${item.ownerName || 'N/A'}`}
+                                         >
+                                           <User2 className="h-3.5 w-3.5" />
+                                         </button>
+                                         <button 
+                                           className="h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted" 
+                                           onClick={() => handleUnlink(item, 'owner')} 
+                                           title="Remover Vínculo de Proprietário"
+                                         >
+                                           <Trash2 className="h-2.5 w-2.5 text-destructive" />
+                                         </button>
+                                       </div>
+                                     ) : null}
+
+                                     {/* Talento Relacionado (Vínculo Manual) */}
+                                     {item.talentId ? (
+                                       <div className="inline-flex items-center gap-1 group">
+                                         <button
+                                           onClick={() => handleViewTalent(item.talentId!)}
+                                           disabled={isLoadingEntity}
+                                           className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60 transition-colors cursor-pointer"
+                                           title={`Talento Vinculado: ${item.talentName || 'N/A'}`}
+                                         >
+                                           <Briefcase className="h-3.5 w-3.5" />
+                                         </button>
+                                         <button 
+                                           className="h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted" 
+                                           onClick={() => handleUnlink(item, 'talent')} 
+                                           title="Remover Vínculo de Talento"
+                                         >
+                                           <Trash2 className="h-2.5 w-2.5 text-destructive" />
+                                         </button>
+                                       </div>
+                                     ) : null}
+
+                                     {/* Estado vazio — sem nenhum vínculo */}
+                                     {!item.tomador && (!isInvoice || !item.quoteId) && !item.customerId && !item.ownerId && !item.talentId ? (
+                                       <span className="text-xs text-muted-foreground">—</span>
+                                     ) : null}
+                                   </div>
+                                </TableCell>
                                 <TableCell className={cn({'text-destructive font-bold': isOverdue && paymentStatus !== 'Pago'})}>
                                   {dueDate ? format(dueDate, 'dd/MM/yyyy') : 'N/A'}
                                   {isOverdue && paymentStatus !== 'Pago' && <Badge variant="destructive" className="ml-2">Vencido</Badge>}
@@ -670,6 +1152,38 @@ export default function BillingMonthPage() {
                                                     <span>Lançar Pagamento</span>
                                                 </DropdownMenuItem>
                                               )}
+                                              
+                                              {/* Submenu Relacionar */}
+                                              <DropdownMenuSub>
+                                                  <DropdownMenuSubTrigger>
+                                                      <Move className="mr-2 h-4 w-4 text-primary" />
+                                                      <span>Relacionar...</span>
+                                                  </DropdownMenuSubTrigger>
+                                                  <DropdownMenuPortal>
+                                                      <DropdownMenuSubContent>
+                                                          {isInvoice && (
+                                                              <DropdownMenuItem onSelect={() => handleOpenLinkDialog(item, 'quote')}>
+                                                                  <Layers className="mr-2 h-4 w-4 text-primary" />
+                                                                  <span>Cotação</span>
+                                                              </DropdownMenuItem>
+                                                          )}
+                                                          <DropdownMenuItem onSelect={() => handleOpenLinkDialog(item, 'customer')}>
+                                                              <Building2 className="mr-2 h-4 w-4 text-blue-500" />
+                                                              <span>Cliente / Fornecedor</span>
+                                                          </DropdownMenuItem>
+                                                          <DropdownMenuItem onSelect={() => handleOpenLinkDialog(item, 'owner')}>
+                                                              <User2 className="mr-2 h-4 w-4 text-purple-500" />
+                                                              <span>Proprietário</span>
+                                                          </DropdownMenuItem>
+                                                          <DropdownMenuItem onSelect={() => handleOpenLinkDialog(item, 'talent')}>
+                                                              <Briefcase className="mr-2 h-4 w-4 text-orange-500" />
+                                                              <span>Talento</span>
+                                                          </DropdownMenuItem>
+                                                      </DropdownMenuSubContent>
+                                                  </DropdownMenuPortal>
+                                              </DropdownMenuSub>
+
+                                              <DropdownMenuSeparator />
                                               <DropdownMenuItem onSelect={() => handleOpenEditDialog(item)}>
                                                 <Edit className="mr-2 h-4 w-4" />
                                                 <span>Editar Fatura</span>
@@ -762,6 +1276,341 @@ export default function BillingMonthPage() {
       </Card>
       
       {/* DIALOGS */}
+      <Dialog open={isManualInvoiceOpen} onOpenChange={(open) => {
+          setIsManualInvoiceOpen(open);
+          if (!open) {
+              setManualTomador('');
+              setManualTomadorId('');
+              setManualTotalValue(0);
+              setMaskedManualTotalValue('R$ 0,00');
+              setManualDueDate('');
+              setManualCustomerResults([]);
+          }
+      }}>
+        <DialogContent className="max-w-md">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    <FilePlus className="h-5 w-5 text-blue-500" />
+                    Nova Cobrança Manual
+                </DialogTitle>
+                <DialogDescription>
+                    Crie uma fatura manual preenchendo as informações abaixo.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                {/* Seleção do Tomador */}
+                <div className="space-y-2 relative">
+                    <Label htmlFor="manualTomador" className="font-semibold text-sm">Tomador (Empresa / Cliente)</Label>
+                    <div className="flex gap-2">
+                        <Input
+                            id="manualTomador"
+                            placeholder="Digite o nome ou busque..."
+                            value={manualTomador}
+                            onChange={(e) => {
+                                setManualTomador(e.target.value);
+                                if (manualTomadorId) setManualTomadorId(''); // Limpa o ID se editarem manualmente o texto
+                                handleSearchManualCustomers(e.target.value);
+                            }}
+                        />
+                    </div>
+                    {/* Auto-suggest dropdown */}
+                    {manualCustomerResults.length > 0 && (
+                        <div className="absolute z-50 w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                            {manualCustomerResults.map((cust) => (
+                                <button
+                                    key={cust.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setManualTomador(cust.razaoSocial || cust.name);
+                                        setManualTomadorId(cust.id);
+                                        setManualCustomerResults([]);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-900 last:border-0 transition-colors"
+                                >
+                                    <p className="font-medium text-zinc-900 dark:text-zinc-100">{cust.razaoSocial || cust.name}</p>
+                                    {(cust.cnpj || cust.document) && <p className="text-xs text-zinc-500">{cust.cnpj || cust.document}</p>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Valor Total */}
+                <div className="space-y-2">
+                    <Label htmlFor="manualTotalValue" className="font-semibold text-sm">Valor Total</Label>
+                    <Input
+                        id="manualTotalValue"
+                        value={maskedManualTotalValue}
+                        onChange={handleManualValueChange}
+                        placeholder="R$ 0,00"
+                    />
+                </div>
+
+                {/* Data de Vencimento */}
+                <div className="space-y-2">
+                    <Label htmlFor="manualDueDate" className="font-semibold text-sm">Data de Vencimento</Label>
+                    <Input
+                        id="manualDueDate"
+                        type="date"
+                        value={manualDueDate}
+                        onChange={(e) => setManualDueDate(e.target.value)}
+                    />
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary" disabled={isSubmitting}>Cancelar</Button>
+                </DialogClose>
+                <Button onClick={handleCreateManualInvoice} disabled={isSubmitting || !manualTomador.trim() || manualTotalValue <= 0 || !manualDueDate}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
+                    Criar Cobrança
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalhes do Cliente/Fornecedor Dialog */}
+      <Dialog open={isCustomerViewOpen} onOpenChange={setIsCustomerViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-blue-500" />
+                Detalhes do Cliente/Fornecedor
+            </DialogTitle>
+          </DialogHeader>
+          {viewingCustomer && (
+            <ScrollArea className="max-h-[70vh] p-4 text-sm">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{viewingCustomer.razaoSocial || viewingCustomer.name || 'Empresa'}</h3>
+                  <p className="text-sm text-muted-foreground">CNPJ/CPF: {viewingCustomer.cnpj || viewingCustomer.document || '—'}</p>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">Nome Fantasia</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingCustomer.nomeFantasia || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">Telefone</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingCustomer.telefone || '—'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">E-mail</p>
+                  <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingCustomer.email || '—'}</p>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div>
+                  <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">Endereço</p>
+                  <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingCustomer.endereco || '—'}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    <div>
+                        <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">Cidade</p>
+                        <p className="p-2 bg-secondary/50 rounded-md mt-1 truncate">{viewingCustomer.cidade || '—'}</p>
+                    </div>
+                    <div>
+                        <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">UF</p>
+                        <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingCustomer.estado || '—'}</p>
+                    </div>
+                     <div>
+                        <p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">CEP</p>
+                        <p className="p-2 bg-secondary/50 rounded-md mt-1 truncate">{viewingCustomer.cep || '—'}</p>
+                    </div>
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalhes da Cotação Dialog */}
+      <Dialog open={isQuoteViewOpen} onOpenChange={setIsQuoteViewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+                <Layers className="h-5 w-5 text-green-500" />
+                Detalhes da Cotação: {viewingQuote?.quoteCode || ''}
+            </DialogTitle>
+            <DialogDescription>Visualização completa dos dados da cotação.</DialogDescription>
+          </DialogHeader>
+          {viewingQuote && (
+            <ScrollArea className="max-h-[70vh] p-1">
+              <div className="space-y-4 pr-4 text-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Remetente</p><p className="mt-1">{viewingQuote.remetente}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Solicitante</p><p className="mt-1">{viewingQuote.responsavelSolicitante}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Contato</p><p className="mt-1">{viewingQuote.contato}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Email</p><p className="mt-1">{viewingQuote.email}</p></div>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Origem</p><p className="mt-1">{viewingQuote.cidadeOrigem}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Destino</p><p className="mt-1">{viewingQuote.cidadeDestino}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Distância</p><p className="mt-1">{viewingQuote.kmIda > 0 ? `${viewingQuote.kmIda.toFixed(2)} km` : 'N/A'}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Veículo</p><p className="mt-1">{viewingQuote.veiculo}</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Prazo</p><p className="mt-1">{viewingQuote.prazoEntrega} dias</p></div>
+                  <div><p className="font-semibold text-muted-foreground text-xs uppercase">Nº da NF</p><p className="mt-1">{viewingQuote.nfNumber || 'N/A'}</p></div>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2"><Move className="h-4 w-4 text-muted-foreground" /> <span className="font-semibold">Endereço de Coleta:</span> <p>{viewingQuote.enderecoColeta || 'Não informado'}</p></div>
+                  <div className="flex items-center gap-2"><Move className="h-4 w-4 text-muted-foreground" /> <span className="font-semibold">Endereço de Entrega:</span> <p>{viewingQuote.enderecoEntrega || 'Não informado'}</p></div>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="text-center bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-lg">
+                  <p className="text-muted-foreground text-xs uppercase font-medium">Total Final (Frete + Taxas + ICMS)</p>
+                  <p className="text-3xl font-bold text-primary mt-1">
+                    {((viewingQuote.valorFinal || viewingQuote.totalFrete) + (viewingQuote.icmsValor || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                  <div className="text-xs text-muted-foreground mt-2 flex justify-center gap-4">
+                    <span>Frete Bruto: {viewingQuote.totalFrete?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    <span>ICMS ({viewingQuote.icmsAliquota || 0}%): {(viewingQuote.icmsValor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    {(viewingQuote.desconto || 0) > 0 && (
+                      <span className="text-red-500">Desconto: -{(viewingQuote.desconto || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalhes do Proprietário Dialog */}
+      <Dialog open={isOwnerViewOpen} onOpenChange={setIsOwnerViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+                <User2 className="h-5 w-5 text-amber-500" />
+                Detalhes do Proprietário
+            </DialogTitle>
+          </DialogHeader>
+          {viewingOwner && (
+            <ScrollArea className="max-h-[70vh] p-4 text-sm">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold">{viewingOwner.name}</h3>
+                  <p className="text-sm text-muted-foreground">CPF/CNPJ: {viewingOwner.document}</p>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Telefone</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingOwner.phone || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">E-mail</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingOwner.email || '—'}</p>
+                  </div>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div>
+                  <p className="font-medium text-muted-foreground text-xs uppercase">Endereço</p>
+                  <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingOwner.address || '—'}</p>
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalhes do Talento Dialog */}
+      <Dialog open={isTalentViewOpen} onOpenChange={setIsTalentViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-indigo-500" />
+                Detalhes do Talento
+            </DialogTitle>
+          </DialogHeader>
+          {viewingTalent && (
+            <ScrollArea className="max-h-[70vh] p-4 text-sm">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold">{viewingTalent.name || viewingTalent.fullName}</h3>
+                  <p className="text-sm text-muted-foreground">CPF: {viewingTalent.cpf || '—'}</p>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Cargo</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingTalent.jobTitle || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Telefone</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingTalent.phone1 || '—'}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Chave PIX</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingTalent.pixKey || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Salário</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingTalent.baseSalary ? viewingTalent.baseSalary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}</p>
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalhes do Motorista Dialog */}
+      <Dialog open={isDriverViewOpen} onOpenChange={setIsDriverViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-orange-500" />
+                Detalhes do Motorista
+            </DialogTitle>
+          </DialogHeader>
+          {viewingDriver && (
+            <ScrollArea className="max-h-[70vh] p-4 text-sm">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold">{viewingDriver.name}</h3>
+                  <p className="text-sm text-muted-foreground">CPF: {viewingDriver.cpf || '—'}</p>
+                </div>
+                <div className="shrink-0 bg-border h-[1px] w-full my-4" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Telefone</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingDriver.phone1 || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">Placa do Veículo</p>
+                    <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingDriver.licensePlate || '—'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-medium text-muted-foreground text-xs uppercase">Chave PIX</p>
+                  <p className="p-2 bg-secondary/50 rounded-md mt-1">{viewingDriver.pixKey || '—'}</p>
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isPayDialogOpen} onOpenChange={(open) => { setIsPayDialogOpen(open); if(!open) setManagedItem(null); }}>
         <DialogContent>
             <DialogHeader>
@@ -923,6 +1772,87 @@ export default function BillingMonthPage() {
             </DialogContent>
         </Dialog>
         <ShareItemDialog item={itemToShare} open={isChatShareOpen} onOpenChange={setIsChatShareOpen} />
+
+        {/* Link / Relacionar Dialog */}
+        <Dialog open={isLinkDialogOpen} onOpenChange={(open) => { setIsLinkDialogOpen(open); if (!open) { setLinkItems([]); setSelectedLinkId(''); setLinkSearchTerm(''); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {linkType === 'quote' && 'Vincular Cotação'}
+                {linkType === 'customer' && 'Vincular Cliente / Fornecedor'}
+                {linkType === 'owner' && 'Vincular Proprietário'}
+                {linkType === 'talent' && 'Vincular Talento'}
+              </DialogTitle>
+              <DialogDescription>
+                {`Busque e selecione o item para vincular à ${itemToLink?.isInvoice ? 'fatura' : 'cotação'} ${itemToLink?.isInvoice ? (itemToLink as any).invoiceCode : (itemToLink as any)?.quoteCode}.`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center gap-2 pt-2">
+              <Input
+                placeholder={
+                  linkType === 'quote' ? 'Buscar cotação por código ou tomador...' :
+                  linkType === 'customer' ? 'Buscar cliente por nome ou CNPJ...' :
+                  linkType === 'owner' ? 'Buscar proprietário por nome...' :
+                  linkType === 'talent' ? 'Buscar talento por nome...' : 'Buscar...'
+                }
+                value={linkSearchTerm}
+                onChange={(e) => setLinkSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchLinkItems()}
+                disabled={isLoadingLinkItems}
+              />
+              <Button onClick={handleSearchLinkItems} disabled={isLoadingLinkItems || !linkSearchTerm.trim()}>
+                {isLoadingLinkItems ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
+            <ScrollArea className="max-h-64 border rounded-md mt-2">
+              {isLoadingLinkItems ? (
+                <div className="flex items-center justify-center h-24">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : linkItems.length > 0 ? (
+                <div className="p-1 space-y-1">
+                  {linkItems.map((item: any) => {
+                    const id = item.id;
+                    const label = linkType === 'quote'
+                      ? `${item.quoteCode} — ${item.tomador}`
+                      : item.razaoSocial || item.name || item.id;
+                    const sublabel = linkType === 'quote'
+                      ? item.data ? format(parseISO(item.data), 'dd/MM/yyyy') : ''
+                      : item.document || item.cpf || item.cnpj || '';
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setSelectedLinkId(id)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-md transition-colors text-sm",
+                          selectedLinkId === id
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-muted"
+                        )}
+                      >
+                        <p className="font-medium">{label}</p>
+                        {sublabel && <p className="text-xs opacity-70">{sublabel}</p>}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+                  {linkSearchTerm ? 'Nenhum resultado encontrado.' : 'Digite um termo e clique em buscar.'}
+                </div>
+              )}
+            </ScrollArea>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline" disabled={isLinking}>Cancelar</Button>
+              </DialogClose>
+              <Button onClick={handleLinkSelect} disabled={isLinking || !selectedLinkId}>
+                {isLinking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Move className="mr-2 h-4 w-4" />}
+                Vincular
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         
         <Dialog open={isGroupingDialogOpen} onOpenChange={setIsGroupingDialogOpen}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">

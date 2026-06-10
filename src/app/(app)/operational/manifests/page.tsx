@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { PageHeader } from '@/components/PageHeader';
 import { printLoadingManifest } from '@/lib/print';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -283,46 +284,52 @@ export default function ManifestsPage() {
     }, [manifests]);
 
     if (isDataLoading || authLoading || !user) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     }
     
     const isAdmin = user?.role === 'admin';
-    const canCreateEdit = isAdmin || !!user?.subPermissions?.operational?.canCreateEditTrips;
-    const canDelete = isAdmin || !!user?.subPermissions?.operational?.canDeleteTrip;
+    const canCreateEdit = isAdmin || !!user?.subPermissions?.operational?.canCreateJourney;
+    const canDelete = isAdmin || !!user?.subPermissions?.operational?.canDeleteJourney;
 
     return (
-        <main className="container mx-auto p-4 md:p-8">
-            <Button variant="outline" onClick={() => router.push('/operational')} className="mb-8">
-              &larr; Voltar para Área Operacional
-            </Button>
-            <div className="space-y-2 mb-8">
-                <h1 className="text-3xl font-bold text-primary">Gerenciar Romaneios</h1>
-                <p className="text-muted-foreground">Crie novos romaneios e visualize os que já foram gerados.</p>
-            </div>
+        <main className="container mx-auto p-4 md:p-8 relative overflow-hidden">
+            {/* Efeitos de desfoque e brilho aurora neon atrás dos cards */}
+            <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10 animate-float-blur-1" />
+            <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10 animate-float-blur-2" />
+
+            <PageHeader
+                icon={<BookOpen className="h-4 w-4" />}
+                badge="Romaneios"
+                titlePrefix="Gerenciar"
+                titleHighlight="Romaneios"
+                description="Crie novos romaneios e visualize os que já foram gerados."
+                backHref="/operational"
+                backLabel="Voltar para Área Operacional"
+            />
 
             {canCreateEdit && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    <Card className="flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary cursor-pointer" onClick={() => { setManifestToEdit(null); setIsManifestDialogOpen(true); }}>
-                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
+                    <Card className="flex flex-col w-full border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden p-6 hover:shadow-2xl hover:border-primary/20 transition-all duration-300 cursor-pointer" onClick={() => { setManifestToEdit(null); setIsManifestDialogOpen(true); }}>
+                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4 p-0">
                             <PlusCircle className="h-8 w-8 text-primary" />
                             <div className="flex-grow">
-                                <CardTitle>Criar Novo Romaneio</CardTitle>
+                                <CardTitle className="text-xl font-bold">Criar Novo Romaneio</CardTitle>
                             </div>
                         </CardHeader>
-                        <CardContent className="flex-grow">
-                            <CardDescription>Agrupe cotações que estão no galpão para criar um novo romaneio de carregamento.</CardDescription>
+                        <CardContent className="flex-grow p-0 mt-3">
+                            <CardDescription className="text-sm text-muted-foreground">Agrupe cotações que estão no galpão para criar um novo romaneio de carregamento.</CardDescription>
                         </CardContent>
                     </Card>
                 </div>
             )}
             
-            <Card>
-                <CardHeader>
-                    <CardTitle>Romaneios Gerados</CardTitle>
-                    <CardDescription>Lista de todos os romaneios criados no sistema.</CardDescription>
+            <Card className="border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl relative overflow-hidden p-6 hover:shadow-2xl transition-all duration-300">
+                <CardHeader className="p-0 pb-5">
+                    <CardTitle className="text-xl font-bold">Romaneios Gerados</CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground">Lista de todos os romaneios criados no sistema.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <div className="border rounded-md max-h-[60vh] overflow-y-auto">
+                <CardContent className="p-0">
+                    <div className="border rounded-xl overflow-hidden bg-background/30 backdrop-blur-md max-h-[60vh] overflow-y-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -550,6 +557,50 @@ export default function ManifestsPage() {
                 searchTerm={driverSearchTerm}
                 onSearchTermChange={handleDriverSearchChange}
             />
+
+            <style>{`
+              @keyframes floatBlur1 {
+                0%, 100% {
+                  transform: translate(0, 0) scale(1);
+                  background-color: hsl(var(--primary) / 0.15);
+                }
+                25% {
+                  transform: translate(120px, 60px) scale(1.15);
+                  background-color: rgba(99, 102, 241, 0.18);
+                }
+                50% {
+                  transform: translate(40px, 160px) scale(0.95);
+                  background-color: rgba(236, 72, 153, 0.14);
+                }
+                75% {
+                  transform: translate(-80px, 100px) scale(1.08);
+                  background-color: rgba(59, 130, 246, 0.18);
+                }
+              }
+
+              @keyframes floatBlur2 {
+                0%, 100% {
+                  transform: translate(0, 0) scale(1);
+                  background-color: rgba(168, 85, 247, 0.15);
+                }
+                33% {
+                  transform: translate(-100px, -120px) scale(1.1);
+                  background-color: rgba(59, 130, 246, 0.16);
+                }
+                66% {
+                  transform: translate(80px, -60px) scale(0.9);
+                  background-color: rgba(236, 72, 153, 0.14);
+                }
+              }
+
+              .animate-float-blur-1 {
+                animation: floatBlur1 28s infinite ease-in-out alternate !important;
+              }
+
+              .animate-float-blur-2 {
+                animation: floatBlur2 38s infinite ease-in-out alternate !important;
+              }
+            `}</style>
         </main>
     );
 }

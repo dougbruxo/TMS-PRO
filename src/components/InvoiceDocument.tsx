@@ -163,15 +163,15 @@ export function InvoiceDocument({
         </section>
 
         {/* PAGAMENTO */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          {/* TRANSFERÊNCIA */}
-          <div className="border rounded-lg p-4">
-            <h2 className="font-bold text-base mb-2">
-              INFORMAÇÕES DE PAGAMENTO
-            </h2>
+        <section className="border rounded-lg p-4">
+          <h2 className="font-bold text-base mb-3">
+            INFORMAÇÕES DE PAGAMENTO
+          </h2>
 
+          <div className="flex items-start gap-6">
+            {/* TRANSFERÊNCIA (lado esquerdo) */}
             {companyProfile?.banco && (
-              <>
+              <div className="flex-1">
                 <p className="font-semibold">
                   Transferência Bancária (TED/DOC)
                 </p>
@@ -195,58 +195,42 @@ export function InvoiceDocument({
                     <strong>CNPJ:</strong> {companyProfile.cnpj}
                   </p>
                 </div>
-              </>
+              </div>
             )}
+
+            {/* QR CODE PIX (lado direito) */}
+            {companyProfile?.pixKey && pixQrCodeDataUrl ? (
+              <div className="flex flex-col items-center flex-shrink-0">
+                <p className="font-semibold text-sm mb-1">PAGAMENTO VIA PIX</p>
+                <img
+                  src={pixQrCodeDataUrl}
+                  alt="PIX QR Code"
+                  className="w-32 h-32"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Aponte a câmera para o QR Code
+                </p>
+              </div>
+            ) : !companyProfile?.pixKey ? (
+              <div className="flex flex-col items-center justify-center flex-shrink-0 text-center p-3 bg-red-50 rounded-md">
+                <p className="text-red-600 font-bold text-xs">
+                  PIX não configurado
+                </p>
+                <p className="text-[10px]">
+                  Cadastre a chave PIX no perfil da empresa.
+                </p>
+              </div>
+            ) : null}
           </div>
 
-          {/* PIX */}
-          {companyProfile?.pixKey ? (
-            <div className="border rounded-lg p-4 text-center bg-gray-50">
-              <h2 className="font-bold text-base mb-2">
-                PAGAMENTO VIA PIX
-              </h2>
-
-              <div className="flex flex-col items-center">
-                {pixQrCodeDataUrl ? (
-                  <img
-                    src={pixQrCodeDataUrl}
-                    alt="PIX QR Code"
-                    className="w-40 h-40"
-                  />
-                ) : (
-                  <p className="text-red-500 text-sm">
-                    QR Code não gerado
-                  </p>
-                )}
-
-                <p className="text-xs mt-2">
-                  Aponte a câmera do seu celular para o QR Code
-                </p>
-
-                <div className="mt-4 w-full">
-                  <p className="text-xs text-gray-500">
-                    Ou utilize o PIX Copia e Cola:
-                  </p>
-
-                  {pixBrcode ? (
-                    <p className="text-[10px] break-all bg-white p-2 border rounded-md mt-1 font-mono">
-                      {pixBrcode}
-                    </p>
-                  ) : (
-                    <p className="text-red-500 text-xs">
-                      Payload PIX não gerado
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="border rounded-lg p-4 text-center bg-red-50">
-              <p className="text-red-600 font-bold">
-                PIX não configurado
+          {/* PIX COPIA E COLA (rodapé do container, largura total) */}
+          {companyProfile?.pixKey && pixBrcode && (
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold">
+                PIX Copia e Cola:
               </p>
-              <p className="text-xs">
-                Cadastre a chave PIX no perfil da empresa.
+              <p className="text-[10px] break-all bg-gray-50 p-2 border rounded-md mt-1 font-mono">
+                {pixBrcode}
               </p>
             </div>
           )}

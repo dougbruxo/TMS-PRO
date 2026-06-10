@@ -208,7 +208,7 @@ export function AppSidebar() {
         const res = await authFetch('/api/my-companies', { headers });
         return res.json();
     },
-    enabled: isCompanyDialogOpen && !!user && (user.role === 'cliente' || user.role === 'sub-cliente'),
+    enabled: !!user && (user.role === 'cliente' || user.role === 'sub-cliente'),
   });
 
   const displayedCompany = React.useMemo(() => {

@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
+import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CalendarDays, ChevronDown, AlertTriangle, BarChart3, ArrowLeft } from 'lucide-react';
+import { Loader2, CalendarDays, ChevronDown, AlertTriangle, BarChart3, ArrowLeft, DollarSign } from 'lucide-react';
 import type { Quote, Invoice } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/api-client';
@@ -180,28 +182,20 @@ export default function BillingHubPage() {
 
   return (
     <main className="container mx-auto p-4 md:p-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => router.push('/financial')} 
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar
+      <PageHeader
+        icon={<DollarSign className="h-4 w-4" />}
+        badge="Financeiro"
+        titlePrefix="Gestão de"
+        titleHighlight="Cobranças"
+        description="Selecione um mês para ver os detalhes ou agrupe múltiplas cobranças em uma única fatura."
+        backHref="/financial"
+        backLabel="Voltar para Financeiro"
+        actions={
+          <Button onClick={() => router.push('/financial/billing/summary')} size="sm">
+               <BarChart3 className="mr-2 h-4 w-4"/> Ver Resumo
           </Button>
-          <div className="h-4 w-px bg-border hidden md:block" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary whitespace-nowrap">Gestão de Cobranças</h1>
-            <p className="text-xs text-muted-foreground hidden md:block">Selecione um mês para ver os detalhes ou agrupe múltiplas cobranças em uma única fatura.</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-           <Button onClick={() => router.push('/financial/billing/summary')} size="sm">
-                <BarChart3 className="mr-2 h-4 w-4"/> Ver Resumo
-            </Button>
-        </div>
-      </div>
+        }
+      />
       
        {isDataLoading ? (
              <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">

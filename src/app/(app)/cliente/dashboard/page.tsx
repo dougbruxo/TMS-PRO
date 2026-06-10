@@ -1,11 +1,26 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Settings, Users, Calculator, HandCoins, MessageSquare, ClipboardCheck, Receipt, Warehouse } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Loader2, Settings, Users, Calculator, HandCoins, MessageSquare, ClipboardCheck, Receipt, Warehouse, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PremiumNavigationCard } from '@/components/PremiumNavigationCard';
+import { PageHeader } from '@/components/PageHeader';
+
+const CardSkeleton = () => (
+    <Card className="flex flex-col w-full h-full border border-border/40 bg-card/45 backdrop-blur-2xl shadow-xl rounded-2xl p-5">
+        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4 p-0">
+            <Skeleton className="h-10 w-10 rounded-2xl" />
+            <div className="flex-grow space-y-2">
+                <Skeleton className="h-5 w-3/4" />
+            </div>
+        </CardHeader>
+        <CardContent className="p-0 mt-2 flex-grow">
+            <Skeleton className="h-4 w-full" />
+        </CardContent>
+    </Card>
+);
 
 export default function ClienteDashboardPage() {
   const { user, loading: isAuthLoading } = useAuth();
@@ -44,13 +59,7 @@ export default function ClienteDashboardPage() {
       icon: <Warehouse className="h-8 w-8 text-primary" />,
       hasAccess: user.armazenagemAccess,
     },
-    {
-      title: "Cotação de Armazenagem",
-      description: "Simule custos de armazenagem e movimentação de estoque.",
-      link: "/cliente/armazenagem/cotacao",
-      icon: <Calculator className="h-8 w-8 text-primary" />,
-      hasAccess: user.quoteArmazenagemAccess,
-    },
+
     {
       title: "Faturas",
       description: "Visualize o status de pagamento das suas cotações.",
@@ -91,44 +100,83 @@ export default function ClienteDashboardPage() {
   const accessibleCards = clientCardsConfig.filter(c => !!c.hasAccess);
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-        <div className="space-y-2 mb-8 border-b pb-6 border-zinc-200 dark:border-zinc-800">
-            <h1 className="text-3xl font-bold text-primary">Painel do Cliente</h1>
-            <p className="text-muted-foreground">Bem-vindo(a) de volta, {user.username}! Como podemos ajudar sua operação hoje?</p>
-        </div>
+    <main className="container mx-auto p-4 md:p-8 relative overflow-hidden">
+        {/* Efeitos de desfoque e brilho aurora neon atrás dos cards */}
+        <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none -z-10 animate-float-blur-1" />
+        <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-purple-500/15 rounded-full blur-[120px] pointer-events-none -z-10 animate-float-blur-2" />
+
+        <PageHeader
+            icon={<LayoutDashboard className="h-4 w-4" />}
+            badge="Painel do Cliente B2B"
+            titlePrefix="Painel do"
+            titleHighlight="Cliente"
+            description={`Bem-vindo(a) de volta, ${user.username}! Como podemos ajudar sua operação hoje?`}
+        />
         
         {isDataLoading ? (
             <div className="space-y-6">
                 <Skeleton className="h-20 w-full" />
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <Card key={index}>
-                          <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                              <Skeleton className="h-8 w-8 rounded-lg" />
-                              <Skeleton className="h-5 w-3/4" />
-                          </CardHeader>
-                          <CardContent><Skeleton className="h-4 w-full" /></CardContent>
-                      </Card>
-                    ))}
+                    {Array.from({ length: 4 }).map((_, index) => <CardSkeleton key={index} />)}
                 </div>
             </div>
         ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {accessibleCards.map((card) => (
-                  <Link key={card.title} href={card.link} className="flex">
-                    <Card className="relative flex flex-col w-full transition-all duration-300 hover:shadow-glow hover:-translate-y-1 hover:ring-2 hover:ring-primary">
-                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                          {card.icon}
-                          <CardTitle className="text-lg">{card.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                          <CardDescription>{card.description}</CardDescription>
-                        </CardContent>
-                    </Card>
-                  </Link>
+                  <PremiumNavigationCard
+                    key={card.title}
+                    title={card.title}
+                    description={card.description}
+                    href={card.link}
+                    icon={card.icon}
+                  />
                 ))}
             </div>
         )}
-    </div>
+
+        <style>{`
+          @keyframes floatBlur1 {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              background-color: hsl(var(--primary) / 0.15);
+            }
+            25% {
+              transform: translate(120px, 60px) scale(1.15);
+              background-color: rgba(99, 102, 241, 0.18);
+            }
+            50% {
+              transform: translate(40px, 160px) scale(0.95);
+              background-color: rgba(236, 72, 153, 0.14);
+            }
+            75% {
+              transform: translate(-80px, 100px) scale(1.08);
+              background-color: rgba(59, 130, 246, 0.18);
+            }
+          }
+
+          @keyframes floatBlur2 {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              background-color: rgba(168, 85, 247, 0.15);
+            }
+            33% {
+              transform: translate(-100px, -120px) scale(1.1);
+              background-color: rgba(59, 130, 246, 0.16);
+            }
+            66% {
+              transform: translate(80px, -60px) scale(0.9);
+              background-color: rgba(236, 72, 153, 0.14);
+            }
+          }
+
+          .animate-float-blur-1 {
+            animation: floatBlur1 28s infinite ease-in-out alternate !important;
+          }
+
+          .animate-float-blur-2 {
+            animation: floatBlur2 38s infinite ease-in-out alternate !important;
+          }
+        `}</style>
+    </main>
   );
 }

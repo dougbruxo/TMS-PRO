@@ -1,38 +1,4 @@
-# Checkpoint 37: Tabelas ANTT 2026 e Gestão de Certificados
-
-Este documento registra a atualização das tabelas de frete mínimo ANTT 2026 e a implementação do módulo de gestão de certificados A1 para emissão fiscal.
-
-## 🚀 Evoluções da Sessão
-
-### 1. Atualização ANTT 2026 (Coeficientes e Tipos de Carga)
-*   **Novas Categorias**: Implementada a lógica de precificação para cargas **Frigorificada** e **Conteinerizada** em `src/lib/data.ts`.
-*   **Coeficientes Dinâmicos**: Adição dos novos coeficientes de Custo de Deslocamento (CCD) e Custo de Carga/Descarga (CC) conforme a resolução ANTT vigente.
-*   **Cálculo de Eixos**: Expansão do suporte para veículos de até 9 eixos, garantindo a cobertura de composições pesadas (Bitrem/Rodotrem).
-*   **Utilitários de Veículo**: Criado o `src/lib/vehicle-utils.ts` para centralizar a lógica de identificação de eixos e categorias de carga.
-
-### 2. Módulo de Gestão de Certificados A1
-*   **Upload de Certificado**: Desenvolvida interface em `Configurações > Certificado` para upload e gestão de arquivos `.pfx` ou `.p12`.
-*   **Persistência Segura**: Implementada a rota de API para armazenamento dos certificados e senhas associadas (criptografadas), essenciais para a assinatura de MDF-e e CT-e.
-*   **Status de Validade**: Integração de feedback visual sobre o status e data de expiração do certificado ativo.
-
-### 3. Refinamento de Tabelas de Frete
-*   **Tabela de Regiões**: Otimização da performance na renderização da `MinimumFreightRegionTable`, permitindo ajustes rápidos por UF.
-*   **Correção em FreightForm**: Ajuste no componente principal de frete para refletir as novas categorias de carga ANTT no seletor de tipo de veículo.
-
-## 📋 Arquivos Modificados/Criados
-1.  `src/lib/data.ts` (Atualização de coeficientes ANTT 2026)
-2.  `src/lib/vehicle-utils.ts` (Lógica de eixos e utilitários) - **[NOVO]**
-3.  `src/app/(app)/settings/antt/page.tsx` (Configurações ANTT) - **[NOVO]**
-4.  `src/app/(app)/settings/certificate/page.tsx` (Gestão de Certificados A1) - **[NOVO]**
-5.  `src/app/api/settings/antt/route.ts` (API de persistência ANTT) - **[NOVO]**
-6.  `src/app/api/settings/certificate/route.ts` (API de upload de certificado) - **[NOVO]**
-7.  `src/components/FreightForm.tsx` (Integração com novas categorias de carga)
-8.  `src/components/VehicleManagement.tsx` (Ajustes na gestão de eixos da frota)
-
----
-
 # Checkpoint 36: Conformidade MDF-e v3.00 e Automação de CIOT Gratuito (Multi-tenant)
-
 
 Este documento registra a resolução definitiva das rejeições de schema do MDF-e (Carga Lotação) e a implementação do módulo de integração direta com a ANTT para geração de CIOT sem custos de IPEF.
 

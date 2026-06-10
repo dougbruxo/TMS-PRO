@@ -43,7 +43,7 @@ export default function DriverFinancialHubPage() {
 
   const { pendingCount, paidCount } = useMemo(() => {
     return {
-        pendingCount: expenses.filter(e => e.status === 'pendente' || e.status === 'parcial').length,
+        pendingCount: expenses.filter(e => e.status === 'pendente' || e.status === 'parcial' || e.status === 'atrasado').length,
         paidCount: expenses.filter(e => e.status === 'pago').length,
     }
   }, [expenses]);

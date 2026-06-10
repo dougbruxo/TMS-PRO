@@ -15,6 +15,7 @@ import { ShareDialog } from './ShareDialog';
 interface ChatInputProps {
   onSendMessage: (message: { text?: string; sharedItem?: SharedItem }) => void;
   isSending: boolean;
+  disabled?: boolean;
 }
 
 const commonEmojis = [
@@ -26,16 +27,16 @@ const commonEmojis = [
   '✅', '❌', '⚠️', '➡️', '⬅️', '⬆️', '⬇️', '🕒',
 ];
 
-export function ChatInput({ onSendMessage, isSending }: ChatInputProps) {
+export function ChatInput({ onSendMessage, isSending, disabled = false }: ChatInputProps) {
   const [text, setText] = useState('');
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isSending) {
+    if (!isSending && !disabled) {
       setTimeout(() => inputRef.current?.focus(), 0);
     }
-  }, [isSending]);
+  }, [isSending, disabled]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,10 +58,10 @@ export function ChatInput({ onSendMessage, isSending }: ChatInputProps) {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="p-2 border-t border-border flex items-center gap-1 bg-background">
+      <form onSubmit={handleSubmit} className="p-2 border-t border-border flex items-center gap-1 bg-background chat-page-input-form">
           <Popover>
               <PopoverTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" disabled={isSending}>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" disabled={isSending || disabled}>
                       <Smile className="h-5 w-5" />
                   </Button>
               </PopoverTrigger>
@@ -73,6 +74,7 @@ export function ChatInput({ onSendMessage, isSending }: ChatInputProps) {
                               size="icon"
                               className="text-xl"
                               onClick={() => handleEmojiSelect(emoji)}
+                              disabled={disabled}
                           >
                               {emoji}
                           </Button>
@@ -80,16 +82,16 @@ export function ChatInput({ onSendMessage, isSending }: ChatInputProps) {
                   </div>
               </PopoverContent>
           </Popover>
-          <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setIsShareDialogOpen(true)} disabled={isSending}>
+          <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setIsShareDialogOpen(true)} disabled={isSending || disabled}>
             <Paperclip className="h-5 w-5" />
           </Button>
         <Input
           ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Digite uma mensagem..."
+          placeholder={disabled ? "Atendimento pendente. Clique em Interagir..." : "Digite uma mensagem..."}
           autoComplete="off"
-          disabled={isSending}
+          disabled={isSending || disabled}
           className="h-9"
           onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -97,7 +99,7 @@ export function ChatInput({ onSendMessage, isSending }: ChatInputProps) {
               }
           }}
         />
-        <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={isSending || !text.trim()}>
+        <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={isSending || disabled || !text.trim()}>
           {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </Button>
       </form>
